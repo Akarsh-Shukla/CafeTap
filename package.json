@@ -13,7 +13,7 @@
     "check": "npm run test:static && npm run smoke && npm run test:push"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
+    "@supabase/supabase-js": "^2.119.0",
     "qr-code-styling": "^1.9.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
