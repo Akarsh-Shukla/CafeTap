@@ -1,0 +1,26 @@
+{
+  "name": "cafetap",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "smoke": "node tests/smoke/build.cjs",
+    "test:push": "node tests/push.test.mjs",
+    "test:static": "node tests/static.test.mjs",
+    "check": "npm run test:static && npm run smoke && npm run test:push"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "qr-code-styling": "^1.9.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.0",
+    "vite": "^5.4.0"
+  }
+}
