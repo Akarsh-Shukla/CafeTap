@@ -118,7 +118,7 @@ begin
   if p_kind = 'item' then update menu_items set is_available = p_available where id = p_id and cafe_id = p_cafe;
   else update addons set is_available = p_available where id = p_id and cafe_id = p_cafe; end if;
   if not found then return _fail('none'); end if;
-  perform _audit(p_cafe, 'menu', 'availability.' || p_kind, p_id::text, jsonb_build_object('available', p_available));
+  perform _audit(p_cafe, 'pos', 'menu.availability.' || p_kind, p_id::text, jsonb_build_object('available', p_available));
   return jsonb_build_object('ok', true);
 end $$;
 revoke all on function menu_set_availability(uuid, text, uuid, boolean) from public, anon, authenticated;

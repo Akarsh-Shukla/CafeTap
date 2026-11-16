@@ -163,7 +163,7 @@ begin
 
   -- B22 notifications never block an order, and only staff can subscribe
   begin
-    insert into app_settings (key, value) values ('push_url', 'https://example.invalid/api/push-notify'), ('push_secret', 'test-secret');
+    insert into app_settings (key, value) values ('push_url', 'https://example.invalid/api/push-notify'), ('push_secret', 'test-secret') on conflict (key) do update set value = excluded.value;   -- rolled back at the end, your real settings are untouched
     r := push_subscribe(caf, 'https://fcm.googleapis.com/fcm/send/test-endpoint', 'p256dh-test', 'auth-test');
     r := jsonb_build_object('sub', r) || _pos_create_order(caf, t1, 'customer', 'idem-test-b22-0000', jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)), '', null, null, null);
     v_out := v_out || format(E'%s B22 an order still succeeds when the notification call fails\n', case when (r->>'ok')::boolean then 'PASS' else 'FAIL' end);

@@ -70,6 +70,8 @@ for (const t of tables) if (!rls.has(t)) bad(`row level security not enabled on 
 for (const [f, t] of allSrc) { if (/get_public_bill|pos_order_status|qrcode\.react|dangerouslySetInnerHTML/.test(t)) bad(`${f} uses something removed for safety`)
   if (/Guest\.jsx|Bill\.jsx/.test(f) && /from\('cafes'\)\.select\('\*'\)/.test(t)) bad(`${f} reads every column of cafes (owner_id would leak)`) }
 for (const f of [...walk('public'), ...walk('functions'), ...src].filter(f => /\.(js|jsx|html|json|webmanifest)$/.test(f))) if (/service_role/.test(read(f))) bad(`service_role found in ${f}`)
+// 6b. audit log entries must use a category the database accepts
+for (const f of sqlFiles) for (const m of strip(read(f)).matchAll(/_audit\(\s*[^,]+,\s*'([a-z_]+)'/g)) if (!['platform', 'pos'].includes(m[1])) bad(`${f}: _audit uses category '${m[1]}', the database only accepts platform or pos`)
 // 7. imports: packages are declared, files exist
 const pkg = JSON.parse(read('package.json')), deps = { ...pkg.dependencies, ...pkg.devDependencies }
 for (const [f, t] of allSrc.filter(([f]) => /\.jsx?$/.test(f))) for (const m of t.matchAll(/(?:import|export)\s[^'"]*?from\s+'([^']+)'|import\(\s*'([^']+)'\s*\)/g)) {
