@@ -5,7 +5,7 @@ import { readPrefs, notify } from '../../lib/alerts'
 import { loadExtras } from '../../lib/menu'
 import AlertBar from '../../components/AlertBar'
 import BillDoc from '../../components/BillDoc'
-import { useCart, AddonSheet, lineUnit, lineLabel } from '../Order.jsx'
+import { useCart, AddonSheet, lineUnit, lineLabel, lineName } from '../Order.jsx'
 
 const NEXT = { pending: ['received', 'Approve order'], received: ['preparing', 'Start preparing'], preparing: ['ready', 'Mark ready'], ready: ['completed', 'Mark completed'] }
 export const OrderLine = ({ i }) => <div className="row"><span style={{ flex: 1 }}>{i.quantity} × {i.name_snapshot}{i.combo?.length > 0 && <small className="inc"> Includes {i.combo.map(x => (x.qty > 1 ? x.qty + '× ' : '') + x.name).join(', ')}</small>}{i.addons?.length > 0 && <small className="inc"> + {i.addons.map(a => a.name).join(', ')}</small>}</span><span>{rupees(i.line_total_minor)}</span></div>
@@ -106,7 +106,7 @@ function Detail({ cafe, perms, v, items, pays, act, msg, err, back }) {
 }
 
 function AddOrder({ cafe, table, act, done }) {
-  const [cats, setCats] = useState([]), [ex, setEx] = useState({ groups: {}, addonById: {}, combo: {}, isCombo: {} }), [note, setNote] = useState(''), [key] = useState(newKey), [picker, setPicker] = useState(null), [busy, setBusy] = useState(false)
+  const [cats, setCats] = useState([]), [ex, setEx] = useState({ groups: {}, addonById: {}, combo: {}, isCombo: {}, from: {}, diets: {} }), [note, setNote] = useState(''), [key] = useState(newKey), [picker, setPicker] = useState(null), [busy, setBusy] = useState(false)
   const { lines, addLine, decKey } = useCart()
   useEffect(() => { supabase.from('menu_categories').select('id,name,sort_order,menu_items(id,name,price_paise,is_available,sort_order)').eq('cafe_id', cafe.id).order('sort_order').then(({ data }) => { setCats(data || []); loadExtras(cafe.id, Object.fromEntries((data || []).flatMap(c => c.menu_items).map(i => [i.id, i]))).then(setEx) }) }, [cafe.id])
   const byId = Object.fromEntries(cats.flatMap(c => c.menu_items).map(i => [i.id, i])), n = lines.reduce((s, l) => s + l.qty, 0), total = lines.reduce((s, l) => s + lineUnit(l, byId, ex) * l.qty, 0)
@@ -115,7 +115,7 @@ function AddOrder({ cafe, table, act, done }) {
   return (<div className="panel"><h3 style={{ marginTop: 0 }}>Counter order for {table.display_name}</h3>
     {cats.map(c => <div key={c.id}><b>{c.name}</b>{[...c.menu_items].sort((a, b) => a.sort_order - b.sort_order).filter(i => i.is_available).map(i => <div key={i.id} className="row"><span style={{ flex: 1 }}>{i.name}{ex.isCombo[i.id] && ' (combo)'} <span className="muted">{rupees(i.price_paise)}</span></span>
       <button onClick={() => pick(i)} aria-label={'Add ' + i.name}>{ex.groups[i.id]?.length ? 'Options' : 'Add'}</button></div>)}</div>)}
-    {lines.length > 0 && <div className="panel">{lines.map(l => <div key={l.key} className="row"><span style={{ flex: 1 }}>{l.qty} × {byId[l.id]?.name}{lineLabel(l, ex) && <small className="inc"> + {lineLabel(l, ex)}</small>}</span><span>{rupees(lineUnit(l, byId, ex) * l.qty)}</span><button className="ghost" onClick={() => decKey(l.key)} aria-label={'Remove one ' + byId[l.id]?.name}>−</button></div>)}</div>}
+    {lines.length > 0 && <div className="panel">{lines.map(l => <div key={l.key} className="row"><span style={{ flex: 1 }}>{l.qty} × {lineName(l, byId, ex)}{lineLabel(l, ex) && <small className="inc"> + {lineLabel(l, ex)}</small>}</span><span>{rupees(lineUnit(l, byId, ex) * l.qty)}</span><button className="ghost" onClick={() => decKey(l.key)} aria-label={'Remove one ' + byId[l.id]?.name}>−</button></div>)}</div>}
     <input placeholder="Note (optional)" maxLength={140} value={note} onChange={e => setNote(e.target.value)} />
     <div className="row"><button disabled={!n || busy} onClick={send}>Add order · {rupees(total)}</button><button className="link" onClick={done}>Cancel</button></div>
     {picker && <AddonSheet item={picker} groups={ex.groups[picker.id] || []} onClose={() => setPicker(null)} onAdd={ids => { addLine(picker.id, ids); setPicker(null) }} />}</div>)

@@ -10,7 +10,7 @@ export default function Extras({ cafe }) {
   const load = async () => {
     const [c, i, g, l, k] = await Promise.all([
       supabase.from('menu_categories').select('id,name').eq('cafe_id', cafe.id).order('sort_order'), supabase.from('menu_items').select('id,name,category_id,is_combo,price_paise').eq('cafe_id', cafe.id).order('name'),
-      supabase.from('addon_groups').select('id,name,min_select,max_select,addons(id,name,price_minor,is_available,sort_order)').eq('cafe_id', cafe.id).order('sort_order'),
+      supabase.from('addon_groups').select('id,name,kind,min_select,max_select,addons(id,name,price_minor,is_available,sort_order,diet)').eq('cafe_id', cafe.id).order('sort_order'),
       supabase.from('item_addon_groups').select('item_id,group_id').eq('cafe_id', cafe.id), supabase.from('combo_items').select('combo_id,item_id,qty').eq('cafe_id', cafe.id)])
     setD({ cats: c.data || [], items: i.data || [], groups: g.data || [], links: l.data || [], combo: k.data || [] })
   }
@@ -56,20 +56,47 @@ function Combos({ cafe, d, run, setMsg, load }) {
 }
 
 function AddonGroups({ cafe, d, run }) {
-  const [g, setG] = useState({ name: '', required: false, max: 1 }), [a, setA] = useState({})
-  const create = async e => { e.preventDefault(); if (!g.name.trim()) return; if (await run(supabase.from('addon_groups').insert({ cafe_id: cafe.id, name: g.name.trim(), min_select: g.required ? 1 : 0, max_select: Math.max(1, Math.min(8, Number(g.max) || 1)) }))) setG({ name: '', required: false, max: 1 }) }
-  const addOne = async gr => { const x = a[gr.id] || {}; if (!(x.name || '').trim()) return; if (await run(supabase.from('addons').insert({ group_id: gr.id, cafe_id: cafe.id, name: x.name.trim(), price_minor: Math.round(Number(x.price || 0) * 100) }))) setA({ ...a, [gr.id]: { name: '', price: '' } }) }
+  const blank = [{ name: '', price: '', diet: '' }, { name: '', price: '', diet: '' }]
+  const [g, setG] = useState({ name: '', type: 'variant', required: false, max: 1 }), [rows, setRows] = useState(blank), [a, setA] = useState({}), [err, setErr] = useState('')
+  const TEMPLATES = [['Half / Full plate', 'Portion', [['Half', ''], ['Full', '']]], ['Veg / Non-veg', 'Type', [['Veg', 'veg'], ['Non-veg', 'nonveg']]]]
+  const useTemplate = (name, rs) => setG(x => ({ ...x, type: 'variant', name })) || setRows(rs.map(([n, diet]) => ({ name: n, price: '', diet })))
+  const create = async e => {
+    e.preventDefault(); setErr(''); const name = g.name.trim(); if (!name) return
+    if (g.type === 'variant') {
+      const opts = rows.filter(r => r.name.trim())
+      if (opts.length < 2 || opts.some(r => r.price === '' || !(Number(r.price) >= 0))) { setErr('Give at least two versions, each with its full price.'); return }
+      const { data, error } = await supabase.from('addon_groups').insert({ cafe_id: cafe.id, name, kind: 'variant', min_select: 1, max_select: 1 }).select('id').single()
+      if (error) { setErr('Could not create that.'); return }
+      const r = await supabase.from('addons').insert(opts.map((o, k) => ({ group_id: data.id, cafe_id: cafe.id, name: o.name.trim(), price_minor: Math.round(Number(o.price) * 100), diet: o.diet || null, sort_order: k })))
+      if (r.error) { await supabase.from('addon_groups').delete().eq('id', data.id); setErr('Could not add those versions.'); return }
+      setRows(blank); setG({ ...g, name: '' }); run(Promise.resolve({}))
+    } else if (await run(supabase.from('addon_groups').insert({ cafe_id: cafe.id, name, kind: 'addon', min_select: g.required ? 1 : 0, max_select: Math.max(1, Math.min(8, Number(g.max) || 1)) }))) setG({ ...g, name: '' })
+  }
+  const addOne = async gr => { const x = a[gr.id] || {}; if (!(x.name || '').trim()) return; if (await run(supabase.from('addons').insert({ group_id: gr.id, cafe_id: cafe.id, name: x.name.trim(), price_minor: Math.round(Number(x.price || 0) * 100), diet: gr.kind === 'variant' && x.diet ? x.diet : null }))) setA({ ...a, [gr.id]: { name: '', price: '', diet: '' } }) }
   const linked = (gid, iid) => d.links.some(l => l.group_id === gid && l.item_id === iid)
   const toggle = (gid, iid) => run(linked(gid, iid) ? supabase.from('item_addon_groups').delete().eq('group_id', gid).eq('item_id', iid) : supabase.from('item_addon_groups').insert({ cafe_id: cafe.id, group_id: gid, item_id: iid }))
   return (<>
-    <form className="panel" onSubmit={create}><h2>Add-ons</h2><p className="muted">Extras guests can pick on a dish, like “Extra shot +₹30” or “Size”. Create a group, add the choices, then tick the dishes it applies to.</p>
-      <label>Group name</label><input maxLength={40} value={g.name} onChange={e => setG({ ...g, name: e.target.value })} placeholder="Size, Extras, Milk" />
-      <div className="row"><label className="chk"><input type="checkbox" checked={g.required} onChange={e => setG({ ...g, required: e.target.checked })} /> Guest must choose</label><div><label>Most they can choose</label><input type="number" min="1" max="8" value={g.max} onChange={e => setG({ ...g, max: e.target.value })} /></div></div>
-      <button>Create group</button></form>
-    {d.groups.map(gr => <div key={gr.id} className="panel"><div className="row"><b style={{ flex: 1 }}>{gr.name}</b><span className="muted">{gr.min_select ? 'Required' : 'Optional'} · up to {gr.max_select}</span><button className="link danger" onClick={() => confirm('Delete this group and its choices?') && run(supabase.from('addon_groups').delete().eq('id', gr.id))}>Delete</button></div>
-      {[...(gr.addons || [])].sort((x, y) => x.sort_order - y.sort_order).map(o => <div key={o.id} className="row"><span style={{ flex: 1 }}>{o.name} <span className="muted">{o.price_minor ? '+' + inr(o.price_minor) : 'Free'}</span></span>
-        <label className="chk"><input type="checkbox" checked={o.is_available} onChange={e => run(supabase.from('addons').update({ is_available: e.target.checked }).eq('id', o.id))} /> Available</label><button className="link danger" onClick={() => run(supabase.from('addons').delete().eq('id', o.id))}>Remove</button></div>)}
-      <div className="row"><input placeholder="Choice, e.g. Extra shot" maxLength={40} value={a[gr.id]?.name || ''} onChange={e => setA({ ...a, [gr.id]: { ...a[gr.id], name: e.target.value } })} /><input type="number" min="0" step="1" style={{ width: 90 }} placeholder="₹" value={a[gr.id]?.price || ''} onChange={e => setA({ ...a, [gr.id]: { ...a[gr.id], price: e.target.value } })} aria-label="Extra price in rupees" /><button className="ghost" type="button" onClick={() => addOne(gr)}>Add choice</button></div>
-      <details><summary>Applies to ({d.links.filter(l => l.group_id === gr.id).length} dishes)</summary><div className="pickbox">{d.items.map(i => <label key={i.id} className="chk"><input type="checkbox" checked={linked(gr.id, i.id)} onChange={() => toggle(gr.id, i.id)} /> {i.name}{i.is_combo ? ' (combo)' : ''}</label>)}</div></details></div>)}
+    <form className="panel" onSubmit={create}><h2>Versions and add-ons</h2>
+      <p className="muted"><b>Versions</b> are different sizes or types of the same dish that each have their own price, like Half and Full plate, or Veg and Non-veg. The guest must pick one. <b>Add-ons</b> are extras added to the price, like “Extra shot +₹30”.</p>
+      <div className="row"><button type="button" className={g.type === 'variant' ? '' : 'ghost'} onClick={() => setG({ ...g, type: 'variant' })}>Versions (sets the price)</button><button type="button" className={g.type === 'addon' ? '' : 'ghost'} onClick={() => setG({ ...g, type: 'addon' })}>Add-ons (extra to the price)</button></div>
+      {g.type === 'variant' && <div className="row">{TEMPLATES.map(([l, n, rs]) => <button type="button" key={l} className="ghost" onClick={() => useTemplate(n, rs)}>Use “{l}”</button>)}</div>}
+      <label>Group name</label><input maxLength={40} value={g.name} onChange={e => setG({ ...g, name: e.target.value })} placeholder={g.type === 'variant' ? 'Portion or Type' : 'Extras, Milk, Toppings'} />
+      {g.type === 'variant' ? <>
+        <label>Versions and their full prices</label>
+        {rows.map((r, k) => <div key={k} className="row"><input placeholder="Name, e.g. Half" maxLength={40} value={r.name} onChange={e => setRows(rs => rs.map((x, j) => j === k ? { ...x, name: e.target.value } : x))} />
+          <input type="number" min="0" step="1" style={{ width: 90 }} placeholder="₹" value={r.price} onChange={e => setRows(rs => rs.map((x, j) => j === k ? { ...x, price: e.target.value } : x))} aria-label="Full price in rupees" />
+          <select value={r.diet} onChange={e => setRows(rs => rs.map((x, j) => j === k ? { ...x, diet: e.target.value } : x))} aria-label="Veg or non-veg"><option value="">—</option><option value="veg">Veg</option><option value="nonveg">Non-veg</option><option value="egg">Egg</option></select>
+          {rows.length > 2 && <button type="button" className="link danger" onClick={() => setRows(rs => rs.filter((_, j) => j !== k))}>Remove</button>}</div>)}
+        {rows.length < 6 && <button type="button" className="ghost" onClick={() => setRows(rs => [...rs, { name: '', price: '', diet: '' }])}>+ Another version</button>}
+        <p className="muted">The dish’s own price in the Menu tab is only used for ordering when no version is chosen; guests see “from ₹…” using the cheapest version.</p></>
+      : <div className="row"><label className="chk"><input type="checkbox" checked={g.required} onChange={e => setG({ ...g, required: e.target.checked })} /> Guest must choose</label><div><label>Most they can choose</label><input type="number" min="1" max="8" value={g.max} onChange={e => setG({ ...g, max: e.target.value })} /></div></div>}
+      {err && <p className="err" role="alert">{err}</p>}<button>Create group</button></form>
+    {d.groups.map(gr => { const variant = gr.kind === 'variant'; return <div key={gr.id} className="panel"><div className="row"><b style={{ flex: 1 }}>{gr.name}</b><span className="muted">{variant ? 'Versions · choose one' : (gr.min_select ? 'Required' : 'Optional') + ' · up to ' + gr.max_select}</span><button className="link danger" onClick={() => confirm('Delete this group and its choices?') && run(supabase.from('addon_groups').delete().eq('id', gr.id))}>Delete</button></div>
+      {[...(gr.addons || [])].sort((x, y) => x.sort_order - y.sort_order).map(o => <div key={o.id} className="row"><span style={{ flex: 1 }}>{o.name}{o.diet ? ' · ' + (o.diet === 'nonveg' ? 'Non-veg' : o.diet === 'veg' ? 'Veg' : 'Egg') : ''}</span>
+        <label className="rs">{variant ? '₹' : '+₹'}<input type="number" min="0" step="1" defaultValue={o.price_minor / 100} aria-label="Price in rupees" onBlur={e => { const p = Math.round(Number(e.target.value || 0) * 100); if (p >= 0 && p !== o.price_minor) run(supabase.from('addons').update({ price_minor: p }).eq('id', o.id)) }} /></label>
+        <label className="chk"><input type="checkbox" checked={o.is_available} onChange={e => run(supabase.from('addons').update({ is_available: e.target.checked }).eq('id', o.id))} /> Available</label>
+        <button className="link danger" onClick={() => run(supabase.from('addons').delete().eq('id', o.id))}>Remove</button></div>)}
+      <div className="row"><input placeholder={variant ? 'Another version' : 'Choice, e.g. Extra shot'} maxLength={40} value={a[gr.id]?.name || ''} onChange={e => setA({ ...a, [gr.id]: { ...a[gr.id], name: e.target.value } })} /><input type="number" min="0" step="1" style={{ width: 90 }} placeholder="₹" value={a[gr.id]?.price || ''} onChange={e => setA({ ...a, [gr.id]: { ...a[gr.id], price: e.target.value } })} aria-label="Price in rupees" /><button className="ghost" type="button" onClick={() => addOne(gr)}>Add</button></div>
+      <details><summary>Applies to ({d.links.filter(l => l.group_id === gr.id).length} dishes)</summary><div className="pickbox">{d.items.map(i => <label key={i.id} className="chk"><input type="checkbox" checked={linked(gr.id, i.id)} onChange={() => toggle(gr.id, i.id)} /> {i.name}{i.is_combo ? ' (combo)' : ''}</label>)}</div></details></div> })}
   </>)
 }

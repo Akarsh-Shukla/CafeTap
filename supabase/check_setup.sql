@@ -10,5 +10,6 @@ select step, applied from (
   union all select 7, 'migration-9 (approval, kitchen, register)', exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'cafe_members' and column_name = 'can_kitchen')
   union all select 8, 'migration-10 (bills, push, counters)', to_regclass('public.cafe_bill_settings') is not null
   union all select 9, 'migration-11 (combos, add-ons, offers engine)', to_regclass('public.addon_groups') is not null
+  union all select 10, 'migration-12 (dish versions, sold-out switch)', to_regprocedure('menu_set_availability(uuid,text,uuid,boolean)') is not null
   union all select 6, 'migration-8 (owner linking fix)', coalesce((select pg_get_functiondef(p.oid) like '%old.owner_id is null%' from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and p.proname = 'lock_cafe_fields' limit 1), false)
 ) t order by n;

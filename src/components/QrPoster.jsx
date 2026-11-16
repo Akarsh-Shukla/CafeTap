@@ -21,10 +21,16 @@ export function makeQr({ value, color, shape = 'rounded', cornerDot = 'dot', ima
     dotsOptions: { color, type: shape }, backgroundOptions: { color: '#ffffff' }, imageOptions: { crossOrigin: 'anonymous', margin: 3, imageSize: 0.22, hideBackgroundDots: true },
     cornersSquareOptions: { color, type: 'square' }, cornersDotOptions: { color, type: cornerDot } })
 }
-// The finished QR as an image address (SVG), ready to place in a poster.
+// The finished QR as an image address (SVG), ready to place in a poster. If drawing with the centre image fails or hangs, it retries
+// without the image; if that fails too it returns false so the screen can say so (never a silent blank square).
 export function useQrImage(opts) {
   const [url, setUrl] = useState(null), key = JSON.stringify([opts.value, opts.color, opts.shape, opts.cornerDot, opts.image])
-  useEffect(() => { let live = true; setUrl(null); makeQr(opts).getRawData('svg').then(b => b && toDataUrl(b)).then(u => live && setUrl(u)).catch(() => {}); return () => { live = false } }, [key])
+  useEffect(() => {
+    let live = true; setUrl(null)
+    const attempt = o => Promise.race([makeQr(o).getRawData('svg').then(b => b && toDataUrl(b)), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 6000))])
+    attempt(opts).catch(() => attempt({ ...opts, image: undefined })).then(u => live && setUrl(u || false)).catch(() => live && setUrl(false))
+    return () => { live = false }
+  }, [key])
   return url
 }
 
@@ -56,7 +62,7 @@ export function QrPoster({ id, qr, name, label, style = 'noir', tagline, brand =
     <text x="300" y={ny} textAnchor="middle" fontFamily={FONT} fontWeight="700" fontSize={fs} fill={s.ink}>{nm}</text>
     <g stroke={s.accent} strokeWidth="2"><path d={`M190 ${ny + 24}H278M322 ${ny + 24}H410`} /><path d={`M300 ${ny + 16}l8 8l-8 8l-8 -8z`} fill={s.accent} /></g>
     <rect x="212" y="300" width="176" height="46" rx="23" fill={s.accent} /><text x="300" y="331" textAnchor="middle" fontFamily={SANS} fontWeight="700" fontSize="22" letterSpacing="2" fill="#fff">{(label || '').toUpperCase().slice(0, 14)}</text>
-    {qr ? <image href={qr} x="150" y="366" width="300" height="300" /> : <rect x="150" y="366" width="300" height="300" fill="#fff" />}
+    {qr ? <image href={qr} x="150" y="366" width="300" height="300" /> : <><rect x="150" y="366" width="300" height="300" fill="#fff" />{qr === false && <text x="300" y="520" textAnchor="middle" fontFamily={SANS} fontSize="18" fill="#b3322a"><tspan x="300" dy="0">The QR could not be drawn.</tspan><tspan x="300" dy="26">Reload the page and try again.</tspan></text>}</>}
     <text x="300" y="720" textAnchor="middle" fontFamily={SANS} fontWeight="700" fontSize="19" letterSpacing="3" fill={s.ink}>{(tagline || 'SCAN TO VIEW THE MENU').toUpperCase().slice(0, 34)}</text>
     <text x="300" y="750" textAnchor="middle" fontFamily={SANS} fontSize="15" letterSpacing="2" fill={s.ink} fillOpacity=".7">POINT YOUR CAMERA OR TAP YOUR PHONE</text>
     {brand && <text x="300" y="806" textAnchor="middle" fontFamily={SANS} fontSize="13" letterSpacing="2" fill={s.ink} fillOpacity=".55">POWERED BY CAFETAP</text>}

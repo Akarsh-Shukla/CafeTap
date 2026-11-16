@@ -35,3 +35,6 @@ createRoot(document.getElementById('root')).render(
     </Route>
   </Routes></BrowserRouter></ErrorBoundary>
 )
+
+// ct-legacy-cleanup: an older version of this app's service worker cached old pages. Remove its caches once and fetch the new worker.
+if (typeof caches !== 'undefined') caches.keys().then(async ks => { const old = ks.filter(k => !k.startsWith('ct-')); if (!old.length) return; await Promise.all(old.map(k => caches.delete(k))); const rs = await (navigator.serviceWorker?.getRegistrations?.() || []); rs.forEach(r => r.update()) }).catch(() => {})

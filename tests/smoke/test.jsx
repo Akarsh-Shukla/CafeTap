@@ -26,6 +26,7 @@ import BillDoc from '../../src/components/BillDoc.jsx'
 import Bill from '../../src/pages/Bill.jsx'
 import Terms from '../../src/pages/Terms.jsx'
 import Extras from '../../src/pages/dash/Extras.jsx'
+import Availability from '../../src/pages/dash/Availability.jsx'
 import BillSettings from '../../src/pages/pos/BillSettings.jsx'
 import InstallButton from '../../src/components/Install.jsx'
 import { QrPoster } from '../../src/components/QrPoster.jsx'
@@ -48,11 +49,12 @@ t('Home no options', () => withCtx(cafe({ settings: {} }), <Home />))
 t('Dock', () => { globalThis.__path = '/rsn-foods/menu'; return <Dock cafe={cafe()} slug="rsn-foods" /> })
 t('Menu (initial)', () => withCtx(cafe(), <MenuPage />))
 t('Wifi', () => withCtx(cafe(), <Wifi />)); t('Review', () => withCtx(cafe(), <Review />)); t('Feedback', () => withCtx(cafe(), <Feedback />)); t('Offers', () => withCtx(cafe(), <Offers />))
-const ord = (can = true) => ({ enabled: true, table: 't', can, hint: false, lines: [{ key: 'i1|', id: 'i1', adds: [], qty: 2 }], setLines() {}, addLine() {}, decKey() {}, qtyOf: () => 2, custom: () => false, pick() {}, sub() {}, ex: { groups: {}, addonById: {}, combo: {}, isCombo: {} }, setEx() {}, picker: null, setPicker() {} })
+const ord = (can = true) => ({ enabled: true, table: 't', can, hint: false, lines: [{ key: 'i1|', id: 'i1', adds: [], qty: 2 }], setLines() {}, addLine() {}, decKey() {}, qtyOf: () => 2, custom: () => false, pick() {}, sub() {}, price: i => '₹' + i.price_paise / 100, ex: { groups: {}, addonById: {}, combo: {}, isCombo: {}, from: {}, diets: {} }, setEx() {}, picker: null, setPicker() {} })
 t('Card photo', () => <Card i={item({ image_url: STORE })} cls="gcard wide" onOpen={() => {}} fav toggle={() => {}} ord={ord()} />)
 t('Card no photo, sold out', () => <Card i={item({ is_available: false })} cls="pick" onOpen={() => {}} fav={false} toggle={() => {}} ord={ord(false)} />)
 for (const k of ['latte', 'iced', 'croissant', 'cake', 'sandwich', 'chai', 'dish', 'egg', 'beans']) t('Art ' + k, () => <Art kind={k} />)
 t('Stepper custom', () => <Stepper qty={2} onAdd={() => {}} onSub={() => {}} name="x" custom />)
+t('AddonSheet versions', () => <AddonSheet vegOnly item={item()} groups={[{ id: 'v1', name: 'Portion', kind: 'variant', min_select: 1, max_select: 1, addons: [{ id: 'a1', name: 'Half', price_minor: 8000, is_available: true, diet: 'veg' }, { id: 'a2', name: 'Full', price_minor: 15000, is_available: true, diet: 'nonveg' }] }]} onClose={() => {}} onAdd={() => {}} />)
 t('AddonSheet', () => <AddonSheet item={item()} groups={[{ id: 'g1', name: 'Size', min_select: 1, max_select: 1, addons: [{ id: 'a1', name: 'Large', price_minor: 2000, is_available: true }, { id: 'a2', name: 'Small', price_minor: 0, is_available: false }] }, { id: 'g2', name: 'Extras', min_select: 0, max_select: 3, addons: [{ id: 'a3', name: 'Extra shot', price_minor: 3000, is_available: true }] }]} onClose={() => {}} onAdd={() => {}} />)
 t('Stepper', () => <><Stepper qty={0} onAdd={() => {}} onSub={() => {}} name="x" /><Stepper qty={3} onAdd={() => {}} onSub={() => {}} name="x" /></>)
 t('CartBar+CartSheet', () => { const byId = { i1: item() }; return <><CartBar ord={ord()} byId={byId} onOpen={() => {}} /><CartSheet cafe={cafe()} ord={ord()} byId={byId} open onClose={() => {}} onRefresh={() => {}} /></> })
@@ -63,7 +65,7 @@ t('Workspace suspended', () => <Workspace cafe={cafe({ suspended: true })} uid="
 t('Overview', () => <Overview cafe={cafe()} go={() => {}} publish={() => {}} isAdmin={false} />)
 t('Settings', () => <Settings cafe={cafe()} uid="u" reload={() => {}} />); t('Settings empty', () => <Settings cafe={cafe({ settings: {} })} uid="u" reload={() => {}} />)
 t('Business', () => <Business cafe={cafe({ cafe_admin: [{ plan: 'trial', owner_email: 'a@b.c' }] })} reload={() => {}} onDeleted={() => {}} />)
-t('MenuEditor', () => <MenuEditor cafe={cafe()} uid="u" />); t('Offers editor', () => <OffersEd cafe={cafe()} pos />); t('Offers editor Basic', () => <OffersEd cafe={cafe({ plan_tier: 'basic' })} />); t('Extras', () => <Extras cafe={cafe()} />); t('BillSettings', () => <BillSettings cafe={cafe()} />); t('Tables', () => <Tables cafe={cafe()} />)
+t('MenuEditor', () => <MenuEditor cafe={cafe()} uid="u" />); t('Offers editor', () => <OffersEd cafe={cafe()} pos />); t('Offers editor Basic', () => <OffersEd cafe={cafe({ plan_tier: 'basic' })} />); t('Extras', () => <Extras cafe={cafe()} />); t('Availability', () => <Availability cafe={cafe()} />); t('BillSettings', () => <BillSettings cafe={cafe()} />); t('Tables', () => <Tables cafe={cafe()} />)
 t('Board (initial)', () => <Board cafe={cafe()} perms={{ orders: true, payments: true, close: true, owner: true }} />)
 const detailProps = { cafe: cafe(), perms: { orders: true, payments: true, close: true, owner: true }, act: async () => ({}), msg: '', back: () => {},
   items: [{ order_id: 'o1', name_snapshot: 'Chai', quantity: 2, line_total_minor: 6000, addons: [{ id: 'a1', name: 'Less sugar' }], combo: null }, { order_id: 'o1', name_snapshot: 'Burger meal', quantity: 1, line_total_minor: 24900, addons: [], combo: [{ name: 'Burger', qty: 1 }, { name: 'Fries', qty: 1 }] }], pays: [{ id: 'p1', bill_id: 'b1', amount_minor: 1000, method: 'cash', event_type: 'payment', recorded_at: new Date().toISOString(), note: 'x' }],

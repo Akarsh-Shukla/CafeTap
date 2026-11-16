@@ -3,6 +3,8 @@ Use a test café with the POS plan. Tick each line.
 
 **QR and menu.** [ ] Scan the printed QR with two different phones (one Android, one iPhone). [ ] Menu, offers, Wi‑Fi, review and feedback open. [ ] Photos load quickly.
 **Ordering.** [ ] Open a table link, add an item with add-ons (required group blocks the button until chosen). [ ] Add a combo. [ ] Cart shows the offer and "you save". [ ] Place the order, allow location. [ ] Standing outside the café, it is refused.
+**Versions.** [ ] A dish with Half/Full shows "from ₹…"; the sheet makes you pick one and the bill says e.g. "Pizza (Half)". [ ] With "Veg only" on, non-veg versions are hidden.
+**Sold out.** [ ] A staff member (without menu editing) marks a dish sold out on the Sold out tab; guests cannot order it.
 **Staff.** [ ] The order appears as "needs approval" with sound. [ ] Approve: it reaches the kitchen with add-ons and combo contents. [ ] Kitchen moves it to ready. [ ] Record cash or UPI for the full amount.
 **Bill.** [ ] The guest screen turns to **Paid** by itself, never shows a balance. [ ] "View bill" shows items, offer, tax lines (if enabled), bill number. [ ] Print or save as PDF works. [ ] A second guest at the same table sees only their own items.
 **Offers.** [ ] Buy 1 get 1: one item has no discount, two items free the cheaper one. [ ] 10% with a minimum: below it nothing, above it the discount. [ ] After the first payment the discount does not change.

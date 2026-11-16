@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate, useOutletContext, useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { inr, safe, track, OPTS, SHORT, BADGE, DIET, catIcon, artKind, HERO_ART, designVars, okImg } from '../lib/util'
 import Art from '../components/Art.jsx'
@@ -113,11 +113,11 @@ export function Home() {
   </>)
 }
 
-const Diet = ({ d }) => d ? <i className={'diet ' + d} role="img" aria-label={DIET[d]} title={DIET[d]} /> : null
+const Diet = ({ d, v }) => v?.length ? v.map(x => <i key={x} className={'diet ' + x} role="img" aria-label={DIET[x]} title={DIET[x]} />) : d ? <i className={'diet ' + d} role="img" aria-label={DIET[d]} title={DIET[d]} /> : null
 const Ph = ({ i }) => <div className="ph">{okImg(i.image_url) ? <img src={okImg(i.image_url)} alt="" loading="lazy" /> : <Art kind={artKind(i.name, i._cat)} />}
   {i.badge && <em className="bdg">{BADGE[i.badge]}</em>}{!i.is_available && <em className="bdg" style={{ top: 'auto', bottom: 10, background: '#555', color: '#fff' }}>Sold out</em>}</div>
 const Card = ({ i, cls, onOpen, fav, toggle, ord, k = 9 }) => <div className={cls + (i.is_available ? '' : ' out')} style={{ '--k': Math.min(k, 8) }}>
-  <button className="cm" onClick={() => onOpen(i)}><Ph i={i} /><div className="cb"><b><Diet d={i.diet} />{i.name}{ord.ex.isCombo[i.id] && <span className="pill2">Combo</span>}</b>{i.description && <small>{i.description}</small>}{ord.ex.combo[i.id] && <small className="inc">Includes {ord.ex.combo[i.id].join(', ')}</small>}<span className="price">{inr(i.price_paise)}</span>{ord.can && i.is_available && <span className="stepgap" />}</div></button>
+  <button className="cm" onClick={() => onOpen(i)}><Ph i={i} /><div className="cb"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{ord.ex.isCombo[i.id] && <span className="pill2">Combo</span>}</b>{i.description && <small>{i.description}</small>}{ord.ex.combo[i.id] && <small className="inc">Includes {ord.ex.combo[i.id].join(', ')}</small>}<span className="price">{ord.price(i)}</span>{ord.can && i.is_available && <span className="stepgap" />}</div></button>
   <button className={'heart' + (fav ? ' on' : '')} onClick={() => toggle(i.id)} aria-pressed={fav} aria-label={fav ? 'Remove from saved' : 'Save this dish'}><Ic n="heart" s={20} /></button>
   {ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div>
 
@@ -136,8 +136,8 @@ export function MenuPage() {
   }, [cafe.id])
   const byId = Object.fromEntries((cats || []).flatMap(c => c.menu_items).map(i => [i.id, i]))
   const ql = q.trim().toLowerCase(), filtering = !!ql || veg || saved
-  const hasDiet = (cats || []).some(c => c.menu_items.some(i => i.diet))
-  const keep = i => (!veg || i.diet === 'veg') && (!saved || favs.includes(i.id)) && (!ql || (i.name + ' ' + (i.description || '')).toLowerCase().includes(ql))
+  const hasDiet = (cats || []).some(c => c.menu_items.some(i => i.diet || ord.ex.diets[i.id]))
+  const keep = i => (!veg || i.diet === 'veg' || ord.ex.diets[i.id]?.includes('veg')) && (!saved || favs.includes(i.id)) && (!ql || (i.name + ' ' + (i.description || '')).toLowerCase().includes(ql))
   const shown = (cats || []).map(c => ({ ...c, items: [...c.menu_items].sort((a, b) => a.sort_order - b.sort_order).map(i => ({ ...i, _cat: c.name })).filter(keep) })).filter(c => c.items.length)
   const picks = filtering ? [] : (cats || []).flatMap(c => c.menu_items.map(i => ({ ...i, _cat: c.name }))).filter(i => i.badge && i.is_available)
   useEffect(() => { if (cats) loadExtras(cafe.id, byId).then(ord.setEx) }, [cats])
@@ -152,7 +152,7 @@ export function MenuPage() {
   const show = i => { setSel(i); setOpen(true) }
   return (<>
     <Sub title="Menu">
-      {receiptLink && <a href={receiptLink} className="bill-open-banner" style={{ textDecoration: 'none' }}><span><b>🧾 Your bill</b><small className="mut" style={{ display: 'block', fontSize: '11px' }}>Tap to see your order, offers and payment status</small></span><span style={{ fontWeight: 700, color: 'var(--ac, #aa3300)' }}>View →</span></a>}
+      {receiptLink && <Link to={receiptLink} className="bill-open-banner" style={{ textDecoration: 'none' }}><span><b>🧾 Your bill</b><small className="mut" style={{ display: 'block', fontSize: '11px' }}>Tap to see your order, offers and payment status</small></span><span style={{ fontWeight: 700, color: 'var(--ac, #aa3300)' }}>View →</span></Link>}
       <input className="search" type="search" placeholder="Search coffee, food and more" aria-label="Search the menu" value={q} onChange={e => setQ(e.target.value)} />
       {ord.hint && <p className="ordhint">Ordering is available. Scan or tap the card on your table to start an order.</p>}
       {offer && <GLink className="ban" to={`/${slug}/offers`}><span><small>Today’s offer</small><b>{offer.title}</b>{offer.rule && <small>{offer.rule}</small>}</span><Ic n="arrow" s={22} /></GLink>}
@@ -171,13 +171,13 @@ export function MenuPage() {
         <div className="chead"><div><h3>{c.name}</h3><small>{c.items.length} {c.items.length === 1 ? 'item' : 'items'}</small></div><span className="chart"><Art kind={artKind(c.name, c.items[0]?.name)} /></span></div>
         {view === 'grid' ? <div className="grid2">{c.items.map((i, k) => <Card key={i.id} i={i} k={ci === 0 ? k : 9} cls={'gcard' + (k === 0 && c.items.length > 1 ? ' wide' : '')} onOpen={show} fav={favs.includes(i.id)} toggle={toggle} ord={ord} />)}</div>
           : c.items.map(i => <div key={i.id} className="mrowx"><button className={'mrow' + (i.is_available ? '' : ' out')} onClick={() => show(i)}>
-            <span className="t"><b><Diet d={i.diet} />{i.name}{i.badge && <span className="pill2">{BADGE[i.badge]}</span>}</b>{i.description && <p>{i.description}</p>}{ord.ex.combo[i.id] && <p className="inc">Includes {ord.ex.combo[i.id].join(', ')}</p>}<span className="price">{inr(i.price_paise)}{!i.is_available && <em> · Sold out</em>}</span></span>
+            <span className="t"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{i.badge && <span className="pill2">{BADGE[i.badge]}</span>}</b>{i.description && <p>{i.description}</p>}{ord.ex.combo[i.id] && <p className="inc">Includes {ord.ex.combo[i.id].join(', ')}</p>}<span className="price">{ord.price(i)}{!i.is_available && <em> · Sold out</em>}</span></span>
             {okImg(i.image_url) ? <img src={okImg(i.image_url)} alt="" loading="lazy" /> : <span className="thumb2"><Art kind={artKind(i.name, i._cat)} /></span>}</button>
             {ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div>)}
       </section>)}
       <p className="small mut">Please tell our staff about any allergies.</p>
     </Sub>
-    {ord.picker && <AddonSheet item={ord.picker} groups={ord.ex.groups[ord.picker.id] || []} onClose={() => ord.setPicker(null)} onAdd={ids => { ord.addLine(ord.picker.id, ids); ord.setPicker(null) }} />}
+    {ord.picker && <AddonSheet vegOnly={veg} item={ord.picker} groups={ord.ex.groups[ord.picker.id] || []} onClose={() => ord.setPicker(null)} onAdd={ids => { ord.addLine(ord.picker.id, ids); ord.setPicker(null) }} />}
     <CartBar ord={ord} byId={byId} onOpen={() => setCartOpen(true)} />
     {ord.can && <CartSheet cafe={cafe} ord={ord} byId={byId} open={cartOpen} onClose={() => setCartOpen(false)} onRefresh={loadMenu} />}
     <div className={'scrim' + (open ? ' on' : '')} onClick={() => setOpen(false)} />
@@ -185,7 +185,7 @@ export function MenuPage() {
       {sel && <>{okImg(sel.image_url) ? <img className="sheetimg" src={okImg(sel.image_url)} alt="" /> : <div className="sheetart"><Art kind={artKind(sel.name, sel._cat)} /></div>}
         <div className="sheetbody"><button className="x" onClick={() => setOpen(false)} aria-label="Close"><Ic n="x" s={20} /></button>
           {sel.badge && <span className="badge">{BADGE[sel.badge]}</span>}
-          <h3><Diet d={sel.diet} />{sel.name}</h3><p className="price big">{inr(sel.price_paise)}</p>
+          <h3><Diet d={sel.diet} v={ord.ex.diets[sel.id]} />{sel.name}</h3><p className="price big">{ord.price(sel)}</p>
           {sel.description && <p>{sel.description}</p>}
           <span className={'badge' + (sel.is_available ? '' : ' no')}>{sel.is_available ? 'Available now' : 'Sold out for now'}</span>
           <button className={'favbtn' + (favs.includes(sel.id) ? ' on' : '')} onClick={() => toggle(sel.id)}><Ic n="heart" s={18} />{favs.includes(sel.id) ? 'Saved' : 'Save for later'}</button></div></>}

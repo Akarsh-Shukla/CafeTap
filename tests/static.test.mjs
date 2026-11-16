@@ -10,7 +10,7 @@ const walk = d => fs.readdirSync(path.join(root, d), { withFileTypes: true }).fl
 const src = walk('src').filter(f => /\.(jsx?|css)$/.test(f))
 
 // ---------- SQL install files, in the order they must be run ----------
-const sqlFiles = ['schema.sql', ...Array.from({ length: 10 }, (_, i) => `migration-${i + 2}.sql`)].map(f => 'supabase/' + f)
+const sqlFiles = ['schema.sql', ...Array.from({ length: 11 }, (_, i) => `migration-${i + 2}.sql`)].map(f => 'supabase/' + f)
 const strip = sql => sql.split('\n').map(l => { let q = 0; for (let i = 0; i < l.length - 1; i++) { if (l[i] === "'") q ^= 1; if (!q && l[i] === '-' && l[i + 1] === '-') return l.slice(0, i) } return l }).join('\n')
 const T = { integer: 'int', boolean: 'bool', 'character varying': 'varchar' }
 const norm = t => { t = t.toLowerCase().replace(/\s+/g, ' ').trim(); return T[t] || t }

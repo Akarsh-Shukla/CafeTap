@@ -17,4 +17,8 @@
 | Backups workflow deleted, `vercel.json` left, dead files | Restored backup, CI added; dead files and unused packages removed | `static.test.mjs` |
 | Page views stored one row each | One small counter row per café, day and kind | render test |
 | Large photo uploads | Shrunk in the browser to 1000 px WebP | — |
-Added on top: Swiggy-style "add ₹X more to unlock" hint, staff removal, register date lock, bill CSV export, onboarding docs.
+| Order sheet overlapped the bottom bar and cart pill | The sheet now sits above them; the cart pill is centred without a clashing animation | checked on a phone-sized screen |
+| QR posters blank on the live site | The security headers blocked the QR library's `data:` image read; headers fixed, and the poster retries without the centre image and shows a message instead of a blank square | reproduced and verified under the live headers |
+| Tax section visible when tax was not enabled | Hidden unless the admin switched it on; nothing is shown on bills either | render test |
+| Guest bill had no way back | Back and Close buttons, "Back to the menu", and in-app navigation | render test |
+Added on top: dish **versions** (Half/Full plate, Veg/Non-veg) that set the price, with a "from ₹…" price and a veg-only filter that understands them; a searchable, foldable menu editor; a **Sold out** screen for owners and every staff member (availability only); a quick-setup for common versions. Earlier additions: Swiggy-style "add ₹X more to unlock" hint, staff removal, register date lock, bill CSV export, onboarding docs.

@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { rpc, rupees, newKey, getPosition, MSG } from '../lib/pos'
 
 const capKey = id => 'ct_cap_' + id, refsKey = id => 'ct_refs_' + id
 const read = k => { try { return JSON.parse(sessionStorage.getItem(k)) } catch { return null } }
 const write = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)) } catch {} }
 const keyOf = (id, adds) => id + '|' + [...adds].sort().join(',')
-export const lineUnit = (l, byId, ex) => (byId[l.id]?.price_paise || 0) + l.adds.reduce((s, a) => s + (ex.addonById[a]?.price_minor || 0), 0)
-export const lineLabel = (l, ex) => l.adds.map(a => ex.addonById[a]?.name).filter(Boolean).join(', ')
+// A chosen "version" (Half/Full, Veg/Non-veg) sets the dish price; ordinary add-ons are added on top. The server does the same sum when it prices the order.
+export const lineUnit = (l, byId, ex) => { let base = byId[l.id]?.price_paise || 0, extra = 0; for (const a of l.adds) { const x = ex.addonById[a]; if (!x) continue; if (x.variant) base = x.price_minor; else extra += x.price_minor } return base + extra }
+export const lineName = (l, byId, ex) => { const v = l.adds.map(a => ex.addonById[a]).find(x => x?.variant); return (byId[l.id]?.name || '') + (v ? ` (${v.name})` : '') }
+export const lineLabel = (l, ex) => l.adds.map(a => ex.addonById[a]).filter(x => x && !x.variant).map(x => x.name).join(', ')
 
 // The cart: a list of lines, each an item plus its chosen add-ons. Shared by the guest menu and the staff counter order.
 export function useCart() {
@@ -23,13 +26,14 @@ export function useCart() {
 export function useOrdering(cafe) {
   let table = null; try { table = sessionStorage.getItem('ct_tbl_' + cafe.id) } catch {}
   const { lines, setLines, addLine, decKey } = useCart()
-  const [enabled, setEnabled] = useState(false), [ex, setEx] = useState({ groups: {}, addonById: {}, combo: {}, isCombo: {} }), [picker, setPicker] = useState(null)
+  const [enabled, setEnabled] = useState(false), [ex, setEx] = useState({ groups: {}, addonById: {}, combo: {}, isCombo: {}, from: {}, diets: {} }), [picker, setPicker] = useState(null)
   useEffect(() => { rpc('pos_ordering_state', { p_cafe: cafe.id }).then(r => setEnabled(!!r.enabled)) }, [cafe.id])
   const qtyOf = id => lines.filter(l => l.id === id).reduce((s, l) => s + l.qty, 0)
   const custom = id => !!ex.groups[id]?.length
   const pick = item => custom(item.id) ? setPicker(item) : addLine(item.id)
   const sub = id => { const l = lines.find(x => x.key === keyOf(id, [])) || lines.find(x => x.id === id); if (l) decKey(l.key) }
-  return { enabled, table, can: enabled && !!table, hint: enabled && !table, lines, setLines, addLine, decKey, qtyOf, custom, pick, sub, ex, setEx, picker, setPicker }
+  const price = i => (ex.from[i.id] != null ? 'from ' : '') + rupees(ex.from[i.id] ?? i.price_paise)
+  return { enabled, table, can: enabled && !!table, hint: enabled && !table, lines, setLines, addLine, decKey, qtyOf, custom, pick, sub, price, ex, setEx, picker, setPicker }
 }
 
 export const Stepper = ({ qty, onAdd, onSub, name, custom }) => custom
@@ -37,20 +41,22 @@ export const Stepper = ({ qty, onAdd, onSub, name, custom }) => custom
   : qty ? <div className="step" role="group" aria-label={'Quantity of ' + name}><button onClick={onSub} aria-label={'Remove one ' + name}>−</button><b key={qty} aria-live="polite">{qty}</b><button onClick={onAdd} aria-label={'Add one ' + name}>+</button></div>
   : <button className="step add" onClick={onAdd} aria-label={'Add ' + name}>Add</button>
 
-// Choose add-ons (extra shot, size, no sugar...) for one item. Groups can be required or optional, with a maximum.
-export function AddonSheet({ item, groups, onClose, onAdd }) {
-  const [sel, setSel] = useState({})
+// Choose a version (Half/Full, Veg/Non-veg: sets the price) and add-ons (extra shot, size, no sugar: added to the price) for one dish.
+export function AddonSheet({ item, groups, onClose, onAdd, vegOnly }) {
+  const [sel, setSel] = useState({}), ordered = [...groups].sort((a, b) => (a.kind === 'variant' ? 0 : 1) - (b.kind === 'variant' ? 0 : 1))
+  const shown = g => { const all = g.addons; if (g.kind !== 'variant' || !vegOnly) return all; const v = all.filter(a => a.diet !== 'nonveg' && a.diet !== 'egg'); return v.length ? v : all }
   const toggle = (g, id) => setSel(s => { const cur = s[g.id] || []; const nx = g.max_select === 1 ? (cur[0] === id ? [] : [id]) : cur.includes(id) ? cur.filter(x => x !== id) : cur.length < g.max_select ? [...cur, id] : cur; return { ...s, [g.id]: nx } })
-  const ids = Object.values(sel).flat(), ok = groups.every(g => (sel[g.id] || []).length >= g.min_select)
-  const extra = groups.flatMap(g => g.addons).filter(a => ids.includes(a.id)).reduce((s, a) => s + a.price_minor, 0)
+  const ids = Object.values(sel).flat(), vIds = ordered.filter(g => g.kind === 'variant').flatMap(g => g.addons.map(a => a.id)), chosen = ordered.flatMap(g => g.addons).filter(a => ids.includes(a.id))
+  const ok = groups.every(g => (sel[g.id] || []).length >= g.min_select), variant = chosen.find(a => vIds.includes(a.id))
+  const total = (variant ? variant.price_minor : item.price_paise || 0) + chosen.filter(a => !vIds.includes(a.id)).reduce((s, a) => s + a.price_minor, 0)
   useEffect(() => { const k = e => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   return (<><div className="scrim on" onClick={onClose} />
     <div className="sheet on" role="dialog" aria-modal="true" aria-label={'Customise ' + item.name}><div className="sheetbody">
       <button className="x" onClick={onClose} aria-label="Close">×</button><span className="script">Make it yours</span><h3>{item.name}</h3>
-      {groups.map(g => <fieldset key={g.id} className="optgrp"><legend>{g.name}<small className="mut"> {g.min_select ? 'Required' : 'Optional'} · choose {g.max_select === 1 ? 'one' : 'up to ' + g.max_select}</small></legend>
-        {g.addons.map(a => { const on = (sel[g.id] || []).includes(a.id); return <button type="button" key={a.id} className={'opt' + (on ? ' on' : '')} aria-pressed={on} disabled={!a.is_available} onClick={() => toggle(g, a.id)}>
-          <span>{a.name}{!a.is_available && <em> · Sold out</em>}</span><b>{a.price_minor ? '+' + rupees(a.price_minor) : 'Free'}</b></button> })}</fieldset>)}
-      <button className="btn" disabled={!ok} onClick={() => onAdd(ids)}>Add to order · {rupees((item.price_paise || 0) + extra)}</button>
+      {ordered.map(g => <fieldset key={g.id} className="optgrp"><legend>{g.name}<small className="mut"> {g.kind === 'variant' ? 'Choose one' : (g.min_select ? 'Required' : 'Optional') + ' · choose ' + (g.max_select === 1 ? 'one' : 'up to ' + g.max_select)}</small></legend>
+        {shown(g).map(a => { const on = (sel[g.id] || []).includes(a.id); return <button type="button" key={a.id} className={'opt' + (on ? ' on' : '')} aria-pressed={on} disabled={!a.is_available} onClick={() => toggle(g, a.id)}>
+          <span className="optl">{a.diet && <i className={'diet ' + a.diet} aria-hidden="true" />}<span>{a.name}{!a.is_available && <em> · Sold out</em>}</span></span><b>{g.kind === 'variant' ? rupees(a.price_minor) : a.price_minor ? '+' + rupees(a.price_minor) : 'Free'}</b></button> })}</fieldset>)}
+      <button className="btn" disabled={!ok} onClick={() => onAdd(ids)}>Add to order · {rupees(total)}</button>
     </div></div></>)
 }
 
@@ -117,12 +123,12 @@ export function CartSheet({ cafe, ord, byId, open, onClose, onRefresh }) {
           {bill?.offer && !bill.shared && <p className="offerline"><b>{bill.offer.title}</b> applied · you saved {rupees(bill.discount_minor)}</p>}
           <p><b>Status:</b> {STATUS[mine?.status] || STATUS.pending}</p>
           {mine?.status !== 'cancelled' && (pay === 'paid' ? <p className="badge paid">✓ Paid · Thank you</p> : pay === 'partial' ? <p className="badge">Partly paid · pay the rest at the counter</p> : <p className="badge">Pay at the counter · Payment pending</p>)}
-          {receipt && <a className="btn" href={'/bill/' + receipt}>{pay === 'paid' ? 'View your bill' : 'View bill so far'}</a>}
+          {receipt && <Link className="btn" to={'/bill/' + receipt} onClick={close}>{pay === 'paid' ? 'View your bill' : 'View bill so far'}</Link>}
           <p className="mut small">Keep this reference: {done.ref}. Your staff record your payment when you pay at the counter, and this screen updates by itself.</p>
         </> : <>
           <span className="script">Table order</span><h3>Your order</h3>
           {!lines.length && <p className="mut">Your order is empty.</p>}
-          {lines.map(l => <div key={l.key} className="cl"><span>{byId[l.id].name}{ord.ex.isCombo[l.id] && ord.ex.combo[l.id] && <small className="inc"> Includes {ord.ex.combo[l.id].join(', ')}</small>}{lineLabel(l, ord.ex) && <small className="inc"> + {lineLabel(l, ord.ex)}</small>}<small className="mut"> {rupees(lineUnit(l, byId, ord.ex))}</small></span>
+          {lines.map(l => <div key={l.key} className="cl"><span>{lineName(l, byId, ord.ex)}{ord.ex.isCombo[l.id] && ord.ex.combo[l.id] && <small className="inc"> Includes {ord.ex.combo[l.id].join(', ')}</small>}{lineLabel(l, ord.ex) && <small className="inc"> + {lineLabel(l, ord.ex)}</small>}<small className="mut"> {rupees(lineUnit(l, byId, ord.ex))}</small></span>
             <span className="clq"><button onClick={() => ord.decKey(l.key)} aria-label={'Remove one ' + byId[l.id].name}>−</button><b>{l.qty}</b><button onClick={() => ord.addLine(l.id, l.adds)} aria-label={'Add one ' + byId[l.id].name}>+</button></span></div>)}
           <label className="mut small" htmlFor="ordnote">Note for the kitchen (optional)</label>
           <input id="ordnote" className="search" maxLength={140} value={note} onChange={e => setNote(e.target.value)} placeholder="Less sugar, no onions…" />

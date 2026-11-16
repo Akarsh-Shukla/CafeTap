@@ -5,6 +5,7 @@ import { useSession } from '../lib/auth'
 import MenuEditor from './dash/MenuEditor'
 import Offers from './dash/Offers'
 import Extras from './dash/Extras'
+import Availability from './dash/Availability'
 import BillSettings from './pos/BillSettings'
 import { usePwa } from '../lib/push'
 import InstallButton from '../components/Install'
@@ -53,7 +54,7 @@ export function Workspace({ cafe, uid, isAdmin, reload, onBack }) {
   const [tab, setTab] = useState('overview')
   const pos = cafe.plan_tier === 'pos' && !cafe.suspended
   // QR/NFC and billing are part of YOUR service, so only the admin sees them. Orders and sales are the café's private data: the admin never sees them.
-  const tabs = [['overview', 'Home'], ['menu', 'Menu'], ['offers', 'Offers'], ['settings', 'My page'],
+  const tabs = [['overview', 'Home'], ['menu', 'Menu'], ['avail', 'Sold out'], ['offers', 'Offers'], ['settings', 'My page'],
     ...(pos ? [['extras', 'Combos & add-ons']] : []), ...(pos && !isAdmin ? [['orders', 'Orders'], ['kitchen', 'Kitchen'], ['sales', 'Sales'], ['bills', 'Bills']] : []), ...(!pos && !isAdmin && !cafe.suspended ? [['register', 'Sales register']] : []),
     ...(!isAdmin && !cafe.suspended ? [['staff', 'Staff']] : []), ...(pos ? [['pos', 'POS setup']] : []),
     ...(isAdmin ? [['tables', 'QR & NFC'], ['business', 'Business']] : [])]
@@ -68,6 +69,7 @@ export function Workspace({ cafe, uid, isAdmin, reload, onBack }) {
       {cafe.suspended && !isAdmin && <p className="panel err">Your account is paused. Your public page stays online, but editing is switched off. Please contact CafeTap.</p>}
       {tab === 'overview' && <Overview cafe={cafe} go={setTab} publish={publish} isAdmin={isAdmin} />}
       {tab === 'menu' && <MenuEditor cafe={cafe} uid={uid} />}
+      {tab === 'avail' && <Availability cafe={cafe} />}
       {tab === 'offers' && <Offers cafe={cafe} pos={pos} />}
       {tab === 'extras' && pos && <Extras cafe={cafe} />}
       {tab === 'bills' && pos && !isAdmin && <BillSettings cafe={cafe} />}
@@ -87,6 +89,7 @@ function StaffWorkspace({ cafe, member }) {
   usePwa()
   const pos = cafe.plan_tier === 'pos'
   const tabs = [...(pos && member.can_orders ? [['orders', 'Orders']] : []), ...(pos && member.can_kitchen ? [['kitchen', 'Kitchen']] : []), ...(pos && member.can_reports ? [['sales', 'Sales']] : []), ...(!pos && member.can_register ? [['register', 'Sales register']] : [])]
+  tabs.push(['avail', 'Sold out'])   // any staff member can mark a dish sold out, nothing else about the menu
   const [tab, setTab] = useState(tabs[0]?.[0])
   return (<div className="dash"><header className="top"><span className="lg">CafeTap</span><span><a href="/welcome">Change password</a> · <InstallButton /> <button className="link" onClick={() => supabase.auth.signOut()}>Log out</button></span></header>
     <section className="greet"><div><span className="script">Staff</span><h1>{cafe.name}</h1></div></section>
@@ -95,6 +98,7 @@ function StaffWorkspace({ cafe, member }) {
       {tab === 'orders' && <Board cafe={cafe} perms={{ orders: member.can_orders, payments: member.can_payments, close: member.can_close, owner: false }} />}
       {tab === 'kitchen' && <Kitchen cafe={cafe} />}
       {tab === 'sales' && <Sales cafe={cafe} />}
+      {tab === 'avail' && <Availability cafe={cafe} />}
       {tab === 'register' && <Register cafe={cafe} owner={false} />}</div></div>)
 }
 

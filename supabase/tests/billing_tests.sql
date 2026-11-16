@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Billing tests: offers, add-ons, combos, discounted bills, receipts, tax, locked functions, push.
--- Run in the SQL Editor of a STAGING project after ALL migrations (schema.sql, 2 to 11).
+-- Run in the SQL Editor of a STAGING project after ALL migrations (schema.sql, 2 to 12).
 -- It always ends with an "error" that lists every result: this is on purpose, it rolls back everything so nothing is kept.
 -- Each line says PASS or FAIL. Not run by the author (no database was available): if a fixture line fails to insert, send me the message.
 -- ============================================================================
@@ -34,6 +34,10 @@ begin
   insert into addon_groups (id, cafe_id, name, min_select, max_select) values (g_size, caf, 'Size', 1, 1), (g_extra, caf, 'Extras', 0, 2);
   insert into addons (id, group_id, cafe_id, name, price_minor, is_available) values (ad_large, g_size, caf, 'Large', 2000, true), (ad_small, g_size, caf, 'Small', 0, true), (ad_xl, g_size, caf, 'XL', 3000, false), (ad_shot, g_extra, caf, 'Extra shot', 3000, true);
   insert into item_addon_groups (cafe_id, item_id, group_id) values (caf, coffee, g_size), (caf, coffee, g_extra);
+  insert into menu_items (id, cafe_id, category_id, name, price_paise) values ('a4000000-0000-0000-0000-0000000000c1', caf, cat_b, 'Pizza', 12000);
+  insert into addon_groups (id, cafe_id, name, kind, min_select, max_select) values ('a5000000-0000-0000-0000-000000000003', caf, 'Portion', 'variant', 1, 1);
+  insert into addons (id, group_id, cafe_id, name, price_minor, diet) values ('a6000000-0000-0000-0000-000000000005', 'a5000000-0000-0000-0000-000000000003', caf, 'Half', 8000, 'veg'), ('a6000000-0000-0000-0000-000000000006', 'a5000000-0000-0000-0000-000000000003', caf, 'Full', 15000, 'nonveg');
+  insert into item_addon_groups (cafe_id, item_id, group_id) values (caf, 'a4000000-0000-0000-0000-0000000000c1', 'a5000000-0000-0000-0000-000000000003');
   insert into addon_groups (id, cafe_id, name) values ('b5000000-0000-0000-0000-000000000001', cafb, 'Other café group');
   insert into addons (id, group_id, cafe_id, name, price_minor) values (ad_b, 'b5000000-0000-0000-0000-000000000001', cafb, 'Other café add-on', 1);
   perform set_config('request.jwt.claims', claim_owner, true);
@@ -42,7 +46,7 @@ begin
   begin
     select string_agg(p.proname, ', ') into v_t from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.prorettype <> 'trigger'::regtype and has_function_privilege('anon', p.oid, 'execute')
-        and p.proname not in ('is_owner', 'is_published', 'is_admin', 'owns_cafe', 'cafe_has_pos', 'staff_can', 'register_access', 'table_label', 'pos_ordering_state', 'pos_start_session', 'pos_submit_order', 'pos_my_bill', 'pos_preview', 'public_offers', 'track_event');
+        and p.prorettype <> 'event_trigger'::regtype and p.proname not in ('is_owner', 'is_published', 'is_admin', 'owns_cafe', 'cafe_has_pos', 'staff_can', 'register_access', 'table_label', 'pos_ordering_state', 'pos_start_session', 'pos_submit_order', 'pos_my_bill', 'pos_preview', 'public_offers', 'track_event');
     v_out := v_out || format(E'%s B1 anonymous visitors can only call the allow-list %s\n', case when v_t is null then 'PASS' else 'FAIL' end, coalesce('(extra: ' || v_t || ')', ''));
   exception when others then v_out := v_out || 'FAIL B1 error: ' || sqlerrm || E'\n'; end;
 
@@ -105,20 +109,20 @@ begin
   -- B12 to B14 real bills: discount on the bill, cancel, payment, bill numbers, locked discount
   begin
     insert into offers (cafe_id, title, kind, percent, min_subtotal_minor) values (caf, '10 percent', 'percent', 10, 20000);
-    r := _pos_create_order(caf, t2, 'staff', 'idem-b12', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
+    r := _pos_create_order(caf, t2, 'staff', 'idem-test-b12-0000', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
     select * into v_b from bills where cafe_id = caf and total_minor > 0 order by created_at desc limit 1;
     v_out := v_out || format(E'%s B12 a counter order gets the offer on the table bill: 300 - 30 = 270 (subtotal %s, discount %s, total %s)\n', case when v_b.subtotal_minor = 30000 and v_b.discount_minor = 3000 and v_b.total_minor = 27000 and v_b.offer_snapshot->>'title' = '10 percent' then 'PASS' else 'FAIL' end, v_b.subtotal_minor, v_b.discount_minor, v_b.total_minor);
     select id into v_o from orders where bill_id = v_b.id limit 1;
     r := pos_set_order_status(v_o, 'cancelled'); select * into v_b from bills where id = v_b.id;
     v_out := v_out || format(E'%s B13 cancelling the order removes the discount too (total %s, discount %s)\n', case when v_b.total_minor = 0 and v_b.discount_minor = 0 then 'PASS' else 'FAIL' end, v_b.total_minor, v_b.discount_minor);
-    r := _pos_create_order(caf, t3, 'staff', 'idem-b14a', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
+    r := _pos_create_order(caf, t3, 'staff', 'idem-test-b14a-0000', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
     select * into v_b from bills where cafe_id = caf and total_minor = 27000 order by created_at desc limit 1;
     r := pos_record_payment(v_b.id, 27000, 'cash', ''); select * into v_b from bills where id = v_b.id;
     v_out := v_out || format(E'%s B14 full payment issues bill number %s and the bill reads paid with no balance\n', case when v_b.bill_no is not null and (_bill_json(v_b.id, null)->'payment'->>'state') = 'paid' and v_b.paid_minor = v_b.total_minor then 'PASS' else 'FAIL' end, v_b.bill_no);
-    r := _pos_create_order(caf, t4, 'staff', 'idem-b14b', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
+    r := _pos_create_order(caf, t4, 'staff', 'idem-test-b14b-0000', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
     select * into v_b from bills where cafe_id = caf and session_id = (select id from table_sessions where table_id = t4 and status = 'open');
     r := pos_record_payment(v_b.id, 1000, 'cash', '');
-    r := _pos_create_order(caf, t4, 'staff', 'idem-b14c', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
+    r := _pos_create_order(caf, t4, 'staff', 'idem-test-b14c-0000', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
     select * into v_b from bills where id = v_b.id;
     v_out := v_out || format(E'%s B15 the discount is locked after the first payment: subtotal 600, discount stays 30, total 570 (got %s / %s / %s)\n', case when v_b.subtotal_minor = 60000 and v_b.discount_minor = 3000 and v_b.total_minor = 57000 then 'PASS' else 'FAIL' end, v_b.subtotal_minor, v_b.discount_minor, v_b.total_minor);
     delete from offers where cafe_id = caf;
@@ -129,8 +133,8 @@ begin
     insert into order_capabilities (id, cafe_id, table_id, token_hash, receipt_hash, expires_at) values
       (cap_a, caf, t5, encode(sha256(convert_to('A' || repeat('a', 63), 'UTF8')), 'hex'), encode(sha256(convert_to(repeat('a', 64), 'UTF8')), 'hex'), now() + interval '1 hour'),
       (cap_b, caf, t5, encode(sha256(convert_to('B' || repeat('b', 63), 'UTF8')), 'hex'), encode(sha256(convert_to(repeat('b', 64), 'UTF8')), 'hex'), now() + interval '1 hour');
-    r := _pos_create_order(caf, t5, 'customer', 'idem-b16a', jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)), '', cap_a, null, null);
-    r := _pos_create_order(caf, t5, 'customer', 'idem-b16b', jsonb_build_array(jsonb_build_object('id', cake, 'qty', 1)), '', cap_b, null, null);
+    r := _pos_create_order(caf, t5, 'customer', 'idem-test-b16a-0000', jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)), '', cap_a, null, null);
+    r := _pos_create_order(caf, t5, 'customer', 'idem-test-b16b-0000', jsonb_build_array(jsonb_build_object('id', cake, 'qty', 1)), '', cap_b, null, null);
     for v_o in select id from orders where session_id = (select id from table_sessions where table_id = t5 and status = 'open') loop perform pos_set_order_status(v_o, 'received'); end loop;
     r := pos_my_bill(repeat('a', 64));
     v_out := v_out || format(E'%s B16 a guest sees only their own items (Tea) plus table totals when others ordered (%s item lines, shared=%s)\n', case when (r->>'ok')::boolean and jsonb_array_length(r->'lines') = 1 and r->'lines'->0->>'name' = 'Tea' and (r->>'shared')::boolean then 'PASS' else 'FAIL' end, jsonb_array_length(r->'lines'), r->>'shared');
@@ -147,7 +151,7 @@ begin
     perform admin_set_tax_feature(caf, true);
     perform set_config('request.jwt.claims', claim_owner, true);
     r := bill_settings_save(caf, '', '', '', '', true, '[{"name":"CGST","rate":"2.5"},{"name":"SGST","rate":"2.5"}]'::jsonb);
-    r := _pos_create_order(caf, t1, 'staff', 'idem-b20', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
+    r := _pos_create_order(caf, t1, 'staff', 'idem-test-b20-0000', jsonb_build_array(jsonb_build_object('id', coffee2, 'qty', 2)), '', null, owner, null);
     select * into v_b from bills where session_id = (select id from table_sessions where table_id = t1 and status = 'open');
     perform pos_record_payment(v_b.id, 30000, 'upi', '');
     r := _bill_json(v_b.id, null);
@@ -161,12 +165,27 @@ begin
   begin
     insert into app_settings (key, value) values ('push_url', 'https://example.invalid/api/push-notify'), ('push_secret', 'test-secret');
     r := push_subscribe(caf, 'https://fcm.googleapis.com/fcm/send/test-endpoint', 'p256dh-test', 'auth-test');
-    r := jsonb_build_object('sub', r) || _pos_create_order(caf, t1, 'customer', 'idem-b22', jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)), '', null, null, null);
-    v_out := v_out || format(E'%s B22 an order still succeeds when the notification call fails\n', case when (r->>'ok')::boolean or (r->>'reason') <> 'error' then 'PASS' else 'FAIL' end);
+    r := jsonb_build_object('sub', r) || _pos_create_order(caf, t1, 'customer', 'idem-test-b22-0000', jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)), '', null, null, null);
+    v_out := v_out || format(E'%s B22 an order still succeeds when the notification call fails\n', case when (r->>'ok')::boolean then 'PASS' else 'FAIL' end);
     perform set_config('request.jwt.claims', '{"sub":"f0000000-0000-0000-0000-00000000000f","role":"authenticated"}', true);
     begin perform push_subscribe(caf, 'https://fcm.googleapis.com/fcm/send/intruder', 'p', 'a'); v_out := v_out || E'FAIL B23 a stranger could subscribe to a café\'s orders\n';
     exception when others then v_out := v_out || E'PASS B23 a stranger cannot subscribe to a café\'s orders\n'; end;
   exception when others then v_out := v_out || 'FAIL B22-B23 error: ' || sqlerrm || E'\n'; end;
+
+  -- B24 to B27 versions of a dish and the sold-out switch
+  begin
+    r := _price_lines(caf, jsonb_build_array(jsonb_build_object('id', 'a4000000-0000-0000-0000-0000000000c1', 'qty', 2, 'addons', jsonb_build_array('a6000000-0000-0000-0000-000000000006'))));
+    v_out := v_out || format(E'%s B24 a chosen version sets the price and shows in the name: 2 x Full 150 = 300 (%s, %s)\n', case when (r->>'total_minor')::bigint = 30000 and r->'lines'->0->>'name' = 'Pizza (Full)' then 'PASS' else 'FAIL' end, r->>'total_minor', r->'lines'->0->>'name');
+    r := _price_lines(caf, jsonb_build_array(jsonb_build_object('id', 'a4000000-0000-0000-0000-0000000000c1', 'qty', 1)));
+    v_out := v_out || format(E'%s B25 a dish with versions cannot be ordered without choosing one (%s)\n', case when r->>'reason' = 'options' then 'PASS' else 'FAIL' end, r->>'reason');
+    perform set_config('request.jwt.claims', '{"sub":"f0000000-0000-0000-0000-00000000000f","role":"authenticated"}', true);
+    begin perform menu_set_availability(caf, 'item', tea, false); v_out := v_out || E'FAIL B26 a stranger could mark a dish sold out\n';
+    exception when others then v_out := v_out || E'PASS B26 a stranger cannot mark a dish sold out\n'; end;
+    perform set_config('request.jwt.claims', claim_owner, true);
+    r := menu_set_availability(caf, 'item', tea, false);
+    v_out := v_out || format(E'%s B27 the owner can mark a dish sold out, and guests then cannot order it\n', case when (r->>'ok')::boolean and not (_price_lines(caf, jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)))->>'ok')::boolean then 'PASS' else 'FAIL' end);
+    perform menu_set_availability(caf, 'item', tea, true);
+  exception when others then v_out := v_out || 'FAIL B24-B27 error: ' || sqlerrm || E'\n'; end;
 
   raise exception E'\n=== BILLING TESTS (everything was rolled back, nothing was saved) ===\n%\n=== end ===', v_out;
 end $$;
