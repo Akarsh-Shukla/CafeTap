@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { rpc, rupees, newKey, getPosition, MSG } from '../lib/pos'
+import { getReceipt, setReceipt } from '../lib/receipt'
 
 const capKey = id => 'ct_cap_' + id, refsKey = id => 'ct_refs_' + id
 const read = k => { try { return JSON.parse(sessionStorage.getItem(k)) } catch { return null } }
@@ -93,15 +94,15 @@ export function CartSheet({ cafe, ord, byId, open, onClose, onRefresh }) {
       try { pos = await getPosition() } catch (e) {
         setSt('error'); setMsg(e && e.code === 1 ? 'Location permission was denied. You can still browse the menu. To order, allow location for this site and try again, or ask our staff to take your order.' : 'We couldn’t get your location. Please check that GPS is on and try again, or ask our staff.'); return
       }
-      const r = await rpc('pos_start_session', { p_cafe: cafe.id, p_table: ord.table, p_lat: pos.latitude, p_lng: pos.longitude, p_accuracy: pos.accuracy })
+      const r = await rpc('pos_start_session', { p_cafe: cafe.id, p_table: ord.table, p_lat: pos.latitude, p_lng: pos.longitude, p_accuracy: pos.accuracy, p_prev_receipt: getReceipt(cafe.id) })
       if (!r.ok) { setSt('error'); setMsg(MSG[r.reason] || MSG.error); return }
-      cap = { token: r.capability, exp: r.expires_at, receipt: r.receipt }; write(capKey(cafe.id), cap)
+      cap = { token: r.capability, exp: r.expires_at, receipt: r.receipt }; write(capKey(cafe.id), cap); setReceipt(cafe.id, r.receipt)
     }
     idem.current = idem.current || newKey()
     const r = await rpc('pos_submit_order', { p_cap: cap.token, p_idem: idem.current, p_items: payload, p_note: note, p_expected: total })
     if (r.ok) {
       const refs = read(refsKey(cafe.id)) || []; write(refsKey(cafe.id), [r.ref, ...refs].slice(0, 10))
-      ord.setLines([]); setNote(''); setBill(null); setDone({ ref: r.ref, total: r.total_minor }); setSt('done'); idem.current = null; return
+      setReceipt(cafe.id, cap.receipt); dispatchEvent(new Event('ct-receipt')); ord.setLines([]); setNote(''); setBill(null); setDone({ ref: r.ref, total: r.total_minor }); setSt('done'); idem.current = null; return
     }
     if (r.reason === 'expired' && !retry) { try { sessionStorage.removeItem(capKey(cafe.id)) } catch {}; return place(true) }
     if (r.reason === 'price_changed') { onRefresh(); setSt('error'); setMsg('Prices changed while you were browsing. The new total is ' + rupees(r.total_minor) + '. Please review and place the order again.'); return }

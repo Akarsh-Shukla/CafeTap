@@ -3,7 +3,7 @@
 ## 1. Supabase
 1. Create a new project. Save the **Project URL** and the **anon public key** (Settings, API).
 2. Authentication, Providers, Email: turn **off** "Allow new users to sign up". Under URL Configuration set the Site URL to your website and add `https://YOUR-SITE/welcome` to the redirect URLs.
-3. SQL Editor: run these files **in order, each once**: `schema.sql`, `migration-2.sql` … `migration-12.sql` (inside `supabase/`). The last three end with a check that must show **zero rows**. Then run `check_setup.sql`: every line must say true.
+3. SQL Editor: run these files **in order, each once**: `schema.sql`, `migration-2.sql` … `migration-13.sql` (inside `supabase/`). The last four end with a check that must show **zero rows**. Then run `check_setup.sql`: every line must say true.
 4. Database, Extensions: enable **pg_net** (needed only for phone notifications).
 5. Create yourself: Authentication, Users, Add user (email and password). Then in the SQL Editor:
    `insert into admins (user_id) select id from auth.users where email = 'YOUR-EMAIL';`

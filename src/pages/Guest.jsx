@@ -6,6 +6,7 @@ import { inr, safe, track, OPTS, SHORT, BADGE, DIET, catIcon, artKind, HERO_ART,
 import Art from '../components/Art.jsx'
 import { useOrdering, Stepper, CartBar, CartSheet, AddonSheet } from './Order.jsx'
 import { loadExtras, loadOffers } from '../lib/menu'
+import RunningBill from '../components/RunningBill'
 
 const P = { menu: 'M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8zM16 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2', offers: 'M3 12V4h8l10 10-8 8L3 12zM7.5 7.5h.01', wifi: 'M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0M12 19.5h.01', review: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z', feedback: 'M4 5h16v11H9l-5 4V5z', back: 'M15 5l-7 7 7 7', x: 'M6 6l12 12M18 6L6 18', arrow: 'M5 12h14M13 6l6 6-6 6', cup: 'M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8zM16 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2', bake: 'M4 18v-5a8 8 0 0 1 16 0v5H4zM9 10l2 3M13 10l2 3', plate: 'M3 10l9-5 9 5-9 5-9-5zM3 14l9 5 9-5', cake: 'M4 20h16v-7H4v7zM4 13c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2M12 7V4', glass: 'M7 4h10l-1.5 15a2 2 0 0 1-2 1.8h-3a2 2 0 0 1-2-1.8L7 4zM8 9h8', egg: 'M12 4c-4 0-7 5-7 9a7 7 0 0 0 14 0c0-4-3-9-7-9z', dish: 'M3 14h18a9 9 0 0 0-18 0zM2 18h20', grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', list: 'M4 6h16M4 12h16M4 18h16', info: 'M12 11v6M12 7.5h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z' }
 const Ic = ({ n, s = 26 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={P[n]} /></svg>
@@ -62,7 +63,7 @@ export function GuestLayout() {
   if (!cafe) return <main className="msg"><h1>Page not available</h1><p>This café page doesn’t exist or isn’t published yet. Please ask the café for their QR code.</p></main>
   const d = cafe.settings?.design || {}
   return (<div className={'page app' + (intro ? ' intro' : '') + (d.calm ? ' calm' : '')} data-theme={cafe.theme} style={designVars(d)}>
-    <div className="screen"><Outlet context={{ cafe, slug }} /></div>
+    <div className="screen"><RunningBill cafe={cafe} /><Outlet context={{ cafe, slug }} /></div>
     <Dock cafe={cafe} slug={slug} />
     {intro && <div className="curtain" aria-hidden="true"><span>{cafe.name}</span></div>}
   </div>)
@@ -117,13 +118,11 @@ const Diet = ({ d, v }) => v?.length ? v.map(x => <i key={x} className={'diet ' 
 const Ph = ({ i }) => <div className="ph">{okImg(i.image_url) ? <img src={okImg(i.image_url)} alt="" loading="lazy" /> : <Art kind={artKind(i.name, i._cat)} />}
   {i.badge && <em className="bdg">{BADGE[i.badge]}</em>}{!i.is_available && <em className="bdg" style={{ top: 'auto', bottom: 10, background: '#555', color: '#fff' }}>Sold out</em>}</div>
 const Card = ({ i, cls, onOpen, fav, toggle, ord, k = 9 }) => <div className={cls + (i.is_available ? '' : ' out')} style={{ '--k': Math.min(k, 8) }}>
-  <button className="cm" onClick={() => onOpen(i)}><Ph i={i} /><div className="cb"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{ord.ex.isCombo[i.id] && <span className="pill2">Combo</span>}</b>{i.description && <small>{i.description}</small>}{ord.ex.combo[i.id] && <small className="inc">Includes {ord.ex.combo[i.id].join(', ')}</small>}<span className="price">{ord.price(i)}</span>{ord.can && i.is_available && <span className="stepgap" />}</div></button>
-  <button className={'heart' + (fav ? ' on' : '')} onClick={() => toggle(i.id)} aria-pressed={fav} aria-label={fav ? 'Remove from saved' : 'Save this dish'}><Ic n="heart" s={20} /></button>
-  {ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div>
+  <button className="cm" onClick={() => onOpen(i)}><Ph i={i} /><div className="cb"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{ord.ex.isCombo[i.id] && <span className="pill2">Combo</span>}</b>{i.description && <small>{i.description}</small>}{ord.ex.combo[i.id] && <small className="inc">Includes {ord.ex.combo[i.id].join(', ')}</small>}</div></button>
+  <div className="pbar"><span className="price">{ord.price(i)}{!i.is_available && <em> · Sold out</em>}</span>{ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div>
+  <button className={'heart' + (fav ? ' on' : '')} onClick={() => toggle(i.id)} aria-pressed={fav} aria-label={fav ? 'Remove from saved' : 'Save this dish'}><Ic n="heart" s={20} /></button></div>
 
 export function MenuPage() {
-  let receiptLink = null
-  try { const c = JSON.parse(sessionStorage.getItem('ct_cap_' + cafe.id) || 'null'), refs = JSON.parse(sessionStorage.getItem('ct_refs_' + cafe.id) || '[]'); if (c?.receipt && refs.length) receiptLink = '/bill/' + c.receipt } catch {}
   const { cafe, slug } = useOutletContext(), ord = useOrdering(cafe)
   const [cats, setCats] = useState(null), [failed, setFailed] = useState(false), [q, setQ] = useState(''), [active, setActive] = useState(''), [sel, setSel] = useState(null), [open, setOpen] = useState(false), [view, setView] = useState('grid'), [offer, setOffer] = useState(null), [veg, setVeg] = useState(false), [saved, setSaved] = useState(false), [cartOpen, setCartOpen] = useState(false)
   const [favs, setFavs] = useState(() => { try { return JSON.parse(localStorage.getItem('ct_fav_' + cafe.id) || '[]') } catch { return [] } })
@@ -152,7 +151,6 @@ export function MenuPage() {
   const show = i => { setSel(i); setOpen(true) }
   return (<>
     <Sub title="Menu">
-      {receiptLink && <Link to={receiptLink} className="bill-open-banner" style={{ textDecoration: 'none' }}><span><b>🧾 Your bill</b><small className="mut" style={{ display: 'block', fontSize: '11px' }}>Tap to see your order, offers and payment status</small></span><span style={{ fontWeight: 700, color: 'var(--ac, #aa3300)' }}>View →</span></Link>}
       <input className="search" type="search" placeholder="Search coffee, food and more" aria-label="Search the menu" value={q} onChange={e => setQ(e.target.value)} />
       {ord.hint && <p className="ordhint">Ordering is available. Scan or tap the card on your table to start an order.</p>}
       {offer && <GLink className="ban" to={`/${slug}/offers`}><span><small>Today’s offer</small><b>{offer.title}</b>{offer.rule && <small>{offer.rule}</small>}</span><Ic n="arrow" s={22} /></GLink>}
@@ -171,9 +169,9 @@ export function MenuPage() {
         <div className="chead"><div><h3>{c.name}</h3><small>{c.items.length} {c.items.length === 1 ? 'item' : 'items'}</small></div><span className="chart"><Art kind={artKind(c.name, c.items[0]?.name)} /></span></div>
         {view === 'grid' ? <div className="grid2">{c.items.map((i, k) => <Card key={i.id} i={i} k={ci === 0 ? k : 9} cls={'gcard' + (k === 0 && c.items.length > 1 ? ' wide' : '')} onOpen={show} fav={favs.includes(i.id)} toggle={toggle} ord={ord} />)}</div>
           : c.items.map(i => <div key={i.id} className="mrowx"><button className={'mrow' + (i.is_available ? '' : ' out')} onClick={() => show(i)}>
-            <span className="t"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{i.badge && <span className="pill2">{BADGE[i.badge]}</span>}</b>{i.description && <p>{i.description}</p>}{ord.ex.combo[i.id] && <p className="inc">Includes {ord.ex.combo[i.id].join(', ')}</p>}<span className="price">{ord.price(i)}{!i.is_available && <em> · Sold out</em>}</span></span>
+            <span className="t"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{i.badge && <span className="pill2">{BADGE[i.badge]}</span>}</b>{i.description && <p>{i.description}</p>}{ord.ex.combo[i.id] && <p className="inc">Includes {ord.ex.combo[i.id].join(', ')}</p>}</span>
             {okImg(i.image_url) ? <img src={okImg(i.image_url)} alt="" loading="lazy" /> : <span className="thumb2"><Art kind={artKind(i.name, i._cat)} /></span>}</button>
-            {ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div>)}
+            <div className="pbar"><span className="price">{ord.price(i)}{!i.is_available && <em> · Sold out</em>}</span>{ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div></div>)}
       </section>)}
       <p className="small mut">Please tell our staff about any allergies.</p>
     </Sub>

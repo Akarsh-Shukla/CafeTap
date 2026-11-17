@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Billing tests: offers, add-ons, combos, discounted bills, receipts, tax, locked functions, push.
--- Run in the SQL Editor of a STAGING project after ALL migrations (schema.sql, 2 to 12).
+-- Run in the SQL Editor of a STAGING project after ALL migrations (schema.sql, 2 to 13).
 -- It always ends with an "error" that lists every result: this is on purpose, it rolls back everything so nothing is kept.
 -- Each line says PASS or FAIL. Not run by the author (no database was available): if a fixture line fails to insert, send me the message.
 -- ============================================================================
@@ -142,6 +142,18 @@ begin
     update order_capabilities set created_at = now() - interval '8 days' where id = cap_a;
     v_out := v_out || format(E'%s B18 a receipt link older than 7 days returns nothing\n', case when not (pos_my_bill(repeat('a', 64))->>'ok')::boolean then 'PASS' else 'FAIL' end);
   exception when others then v_out := v_out || 'FAIL B16-B18 error: ' || sqlerrm || E'\n'; end;
+
+  -- B28 to B29 the running bill: a second visit at the same table joins the first one, and closing the table ends it
+  begin
+    insert into order_capabilities (id, cafe_id, table_id, token_hash, receipt_hash, expires_at, receipt_group)
+      values ('cc000000-0000-0000-0000-0000000000cc', caf, t5, encode(sha256(convert_to('C' || repeat('c', 63), 'UTF8')), 'hex'), encode(sha256(convert_to(repeat('d', 64), 'UTF8')), 'hex'), now() + interval '1 hour', (select receipt_group from order_capabilities where id = cap_a));
+    r := _pos_create_order(caf, t5, 'customer', 'idem-test-b28-0000', jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)), '', 'cc000000-0000-0000-0000-0000000000cc', null, null);
+    for v_o in select id from orders where session_id = (select id from table_sessions where table_id = t5 and status = 'open') and status = 'pending' loop perform pos_set_order_status(v_o, 'received'); end loop;
+    r := pos_my_bill(repeat('d', 64));
+    v_out := v_out || format(E'%s B28 a new link from the same guest shows both visits on one running bill (Tea x%s, open=%s)\n', case when (r->>'ok')::boolean and (r->'lines'->0->>'qty')::int = 2 and (r->>'open')::boolean then 'PASS' else 'FAIL' end, r->'lines'->0->>'qty', r->>'open');
+    update bills set status = 'closed' where session_id = (select id from table_sessions where table_id = t5 and status = 'open');
+    v_out := v_out || format(E'%s B29 once the table is closed the bill says it is no longer open\n', case when not (pos_my_bill(repeat('d', 64))->>'open')::boolean then 'PASS' else 'FAIL' end);
+  exception when others then v_out := v_out || 'FAIL B28-B29 error: ' || sqlerrm || E'\n'; end;
 
   -- B19 to B21 tax: off until the admin allows it, inclusive breakup only, frozen when paid
   begin

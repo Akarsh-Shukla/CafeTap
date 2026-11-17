@@ -324,3 +324,10 @@ details.panel summary{font-family:Fraunces,serif;font-weight:600;cursor:pointer;
 .avrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #ddd8c8}
 .avbtn{min-width:108px;min-height:44px;padding:8px 14px;border-radius:99px;border:2px solid #2f7d4a;background:#2f7d4a;color:#fff;font:inherit;font-weight:700;cursor:pointer}.avbtn.out{background:none;color:#b3322a;border-color:#b3322a}
 .rs{display:inline-flex;align-items:center;gap:4px;font-weight:600}.rs input{width:90px}
+
+/* compact Add button beside the price, in the list and the card view */
+.pbar{display:flex;align-items:center;justify-content:space-between;gap:12px}.gcard .pbar{padding:0 14px 14px}.gcard.wide{flex-direction:column}.gcard.wide .cm{flex:none}
+.mrowx{border-bottom:1px solid var(--line)}.mrowx .mrow{border-bottom:0;padding-bottom:6px}.mrowx .pbar{justify-content:flex-start;padding:0 0 14px}
+.pbar .step{position:static;inset:auto;box-shadow:none;padding:2px;gap:2px}.pbar .step.add{position:relative;padding:7px 18px;font-size:14px;line-height:1;min-height:34px}
+.pbar .step button{width:30px;height:30px;font-size:18px}.pbar .step b{min-width:20px;font-size:15px}.pbar .price{font-weight:700}
+.runbill{position:sticky;top:0;z-index:25;display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 10px;padding:10px 14px;border-radius:calc(var(--r) * .7);background:var(--ac);color:var(--on);text-decoration:none;box-shadow:0 10px 22px -14px #000}.runbill b{display:block}.runbill small{display:block;opacity:.9}.rbgo{font-weight:700;white-space:nowrap}

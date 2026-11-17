@@ -29,6 +29,7 @@ import Extras from '../../src/pages/dash/Extras.jsx'
 import Availability from '../../src/pages/dash/Availability.jsx'
 import BillSettings from '../../src/pages/pos/BillSettings.jsx'
 import InstallButton from '../../src/components/Install.jsx'
+import RunningBill from '../../src/components/RunningBill.jsx'
 import { QrPoster } from '../../src/components/QrPoster.jsx'
 import Art from '../../src/components/Art.jsx'
 import ErrorBoundary from '../../src/components/ErrorBoundary.jsx'
@@ -89,7 +90,7 @@ t('BillDoc free items offer', () => <BillDoc bill={bill({ offer: { title: 'Buy 1
 t('BillDoc shared table', () => <BillDoc bill={bill({ shared: true, bill_subtotal_minor: 90000, tax: [] })} />)
 t('BillDoc empty', () => <BillDoc bill={bill({ lines: [], subtotal_minor: 0 })} />)
 t('Bill page (loading)', () => withCtx(cafe(), <Bill />, { token: 'a'.repeat(64) }))
-t('Terms', () => <Terms />); t('Install button', () => <InstallButton />)
+t('RunningBill', () => <RunningBill cafe={cafe()} />); t('Terms', () => <Terms />); t('Install button', () => <InstallButton />)
 for (const style of ['arch', 'blush', 'fresh', 'noir']) t('QrPoster ' + style, () => <QrPoster id="x" qr="data:image/svg+xml;base64,AAAA" name="RSN Foods" label="Table 4" style={style} tagline="Scan to view the menu" />)
 t('QrPoster loading', () => <QrPoster id="x" qr={null} name="A very long café name that is cut" label="Table 12" />)
 t('ErrorBoundary', () => <ErrorBoundary><Home /></ErrorBoundary>)

@@ -7,7 +7,7 @@ Use a test café with the POS plan. Tick each line.
 **Sold out.** [ ] A staff member (without menu editing) marks a dish sold out on the Sold out tab; guests cannot order it.
 **Staff.** [ ] The order appears as "needs approval" with sound. [ ] Approve: it reaches the kitchen with add-ons and combo contents. [ ] Kitchen moves it to ready. [ ] Record cash or UPI for the full amount.
 **Bill.** [ ] The guest screen turns to **Paid** by itself, never shows a balance. [ ] "View bill" shows items, offer, tax lines (if enabled), bill number. [ ] Print or save as PDF works. [ ] A second guest at the same table sees only their own items.
-**Offers.** [ ] Buy 1 get 1: one item has no discount, two items free the cheaper one. [ ] 10% with a minimum: below it nothing, above it the discount. [ ] After the first payment the discount does not change.
+**Running bill.** [ ] After ordering, close the browser and reopen the café link: a bar at the top still shows the order progress, amount and Paid or Pay at the counter. [ ] Order again: the same bar adds it up. [ ] After staff close the table, the bar disappears.\n**Offers.** [ ] Buy 1 get 1: one item has no discount, two items free the cheaper one. [ ] 10% with a minimum: below it nothing, above it the discount. [ ] After the first payment the discount does not change.
 **App.** [ ] Install the staff app from the browser. [ ] Turn on notifications, close the app, place an order: the phone notifies. [ ] Customers never see an install prompt.
 **QR posters.** [ ] Download PNG for a table, print it, and scan the print with two phones.
 **Safety.** [ ] A staff member without payment permission cannot record payments. [ ] Removing a staff member ends their access.
