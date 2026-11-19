@@ -27,7 +27,7 @@ sqlFiles.forEach((f, fi) => {
   while ((m = fn.exec(s))) {
     let d = 1, i = fn.lastIndex; while (d && i < s.length) { if (s[i] === '(') d++; if (s[i] === ')') d--; i++ }
     const header = s.slice(i, s.indexOf('$', i)), name = m[1].toLowerCase().replace(/^public\./, '')
-    events.push({ at: base + m.index, t: 'create', sig: name + '(' + args(s.slice(fn.lastIndex, i - 1), true) + ')', name, secdef: /security\s+definer/i.test(header), path: /set\s+search_path/i.test(header), trig: /returns\s+trigger/i.test(header), f })
+    events.push({ at: base + m.index, t: 'create', sig: name + '(' + args(s.slice(fn.lastIndex, i - 1), true) + ')', name, secdef: /security\s+definer/i.test(header), path: /set\s+search_path/i.test(header), trig: /returns\s+trigger/i.test(header), body: (() => { const bs = s.indexOf('$', i), tag = s.slice(bs, s.indexOf('$', bs + 1) + 1), be = s.indexOf(tag, bs + tag.length); return s.slice(bs + tag.length, be) })(), f })
   }
   const dr = /drop\s+function\s+(?:if\s+exists\s+)?([^;]+);/gi
   while ((m = dr.exec(s))) sigList(m[1].replace(/\s+cascade\s*$/i, '')).forEach(sig => events.push({ at: base + m.index, t: 'drop', sig }))
@@ -39,7 +39,7 @@ sqlFiles.forEach((f, fi) => {
 events.sort((a, b) => a.at - b.at)
 const fns = new Map()
 for (const e of events) {
-  if (e.t === 'create') { const o = fns.get(e.sig) || { publicRevoked: false, anonRevoked: false, anonGranted: false }; fns.set(e.sig, { ...o, name: e.name, secdef: e.secdef, path: e.path, trig: e.trig, f: e.f }) }
+  if (e.t === 'create') { const o = fns.get(e.sig) || { publicRevoked: false, anonRevoked: false, anonGranted: false }; fns.set(e.sig, { ...o, name: e.name, secdef: e.secdef, path: e.path, trig: e.trig, body: e.body, f: e.f }) }
   else if (e.t === 'drop') fns.delete(e.sig)
   else { const s = fns.get(e.sig); if (!s) { bad(`${e.t} on a function that does not exist at that point: ${e.sig} (${e.f})`); continue }
     if (e.t === 'revoke') { if (e.roles.includes('public')) s.publicRevoked = true; if (e.roles.includes('anon')) { s.anonRevoked = true; s.anonGranted = false } if (e.roles.includes('public')) s.anonGranted = false }
@@ -50,6 +50,13 @@ if (process.argv.includes('--list')) { console.log('Functions callable by anonym
 
 // 1. every definer function pins its search path
 for (const [sig, s] of fns) if (s.secdef && !s.path) bad(`security definer without "set search_path": ${sig} (${s.f})`)
+// 1b. a variable and a table alias with the same name give "column reference is ambiguous" errors that only appear when the function runs
+const KW = new Set('where on join left right inner outer cross group order limit using set values select loop for union returning into and or not is lateral as natural full when then else end having offset window fetch if begin'.split(' '))
+for (const [sig, s] of fns) {
+  const dm = (s.body || '').match(/^\s*declare([\s\S]*?)\bbegin\b/i); if (!dm) continue
+  const vars = new Set(dm[1].split(';').map(x => (x.trim().match(/^([a-z_][a-z0-9_]*)\s/i) || [])[1]?.toLowerCase()).filter(Boolean))
+  for (const m of s.body.matchAll(/\b(?:from|join)\s+[a-z_][a-z0-9_.]*\s+(?:as\s+)?([a-z_][a-z0-9_]*)\b/gi)) { const a = m[1].toLowerCase(); if (!KW.has(a) && vars.has(a) && new RegExp('\\b' + a + '\\.[a-z_]', 'i').test(s.body)) bad(`${sig} (${s.f}): "${a}" is both a variable and a table alias`) }
+}
 // 2. no duplicate versions of a function (they cause "not unique" errors and old, unsafe copies)
 const byName = new Map(); for (const [sig, s] of fns) byName.set(s.name, [...(byName.get(s.name) || []), sig])
 for (const [n, l] of byName) if (l.length > 1) bad(`two versions of ${n}: ${l.join('  |  ')}`)

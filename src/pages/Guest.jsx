@@ -122,6 +122,11 @@ const Card = ({ i, cls, onOpen, fav, toggle, ord, k = 9 }) => <div className={cl
   <div className="pbar"><span className="price">{ord.price(i)}{!i.is_available && <em> · Sold out</em>}</span>{ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div>
   <button className={'heart' + (fav ? ' on' : '')} onClick={() => toggle(i.id)} aria-pressed={fav} aria-label={fav ? 'Remove from saved' : 'Save this dish'}><Ic n="heart" s={20} /></button></div>
 
+const Row = ({ i, ord, onOpen }) => <div className="mrowx"><button className={'mrow' + (i.is_available ? '' : ' out')} onClick={() => onOpen(i)}>
+  <span className="t"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{i.badge && <span className="pill2">{BADGE[i.badge]}</span>}</b>{i.description && <p>{i.description}</p>}{ord.ex.combo[i.id] && <p className="inc">Includes {ord.ex.combo[i.id].join(', ')}</p>}</span>
+  {okImg(i.image_url) ? <img src={okImg(i.image_url)} alt="" loading="lazy" /> : <span className="thumb2"><Art kind={artKind(i.name, i._cat)} /></span>}</button>
+  <div className="pbar"><span className="price">{ord.price(i)}{!i.is_available && <em> · Sold out</em>}</span>{ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div></div>
+
 export function MenuPage() {
   const { cafe, slug } = useOutletContext(), ord = useOrdering(cafe)
   const [cats, setCats] = useState(null), [failed, setFailed] = useState(false), [q, setQ] = useState(''), [active, setActive] = useState(''), [sel, setSel] = useState(null), [open, setOpen] = useState(false), [view, setView] = useState('grid'), [offer, setOffer] = useState(null), [veg, setVeg] = useState(false), [saved, setSaved] = useState(false), [cartOpen, setCartOpen] = useState(false)
@@ -168,10 +173,7 @@ export function MenuPage() {
       {shown.map((c, ci) => <section key={c.id} id={'c' + c.id} data-id={c.id} className="msec">
         <div className="chead"><div><h3>{c.name}</h3><small>{c.items.length} {c.items.length === 1 ? 'item' : 'items'}</small></div><span className="chart"><Art kind={artKind(c.name, c.items[0]?.name)} /></span></div>
         {view === 'grid' ? <div className="grid2">{c.items.map((i, k) => <Card key={i.id} i={i} k={ci === 0 ? k : 9} cls={'gcard' + (k === 0 && c.items.length > 1 ? ' wide' : '')} onOpen={show} fav={favs.includes(i.id)} toggle={toggle} ord={ord} />)}</div>
-          : c.items.map(i => <div key={i.id} className="mrowx"><button className={'mrow' + (i.is_available ? '' : ' out')} onClick={() => show(i)}>
-            <span className="t"><b><Diet d={i.diet} v={ord.ex.diets[i.id]} />{i.name}{i.badge && <span className="pill2">{BADGE[i.badge]}</span>}</b>{i.description && <p>{i.description}</p>}{ord.ex.combo[i.id] && <p className="inc">Includes {ord.ex.combo[i.id].join(', ')}</p>}</span>
-            {okImg(i.image_url) ? <img src={okImg(i.image_url)} alt="" loading="lazy" /> : <span className="thumb2"><Art kind={artKind(i.name, i._cat)} /></span>}</button>
-            <div className="pbar"><span className="price">{ord.price(i)}{!i.is_available && <em> · Sold out</em>}</span>{ord.can && i.is_available && <Stepper qty={ord.qtyOf(i.id)} onAdd={() => ord.pick(i)} onSub={() => ord.sub(i.id)} name={i.name} custom={ord.custom(i.id)} />}</div></div>)}
+          : c.items.map(i => <Row key={i.id} i={i} ord={ord} onOpen={show} />)}
       </section>)}
       <p className="small mut">Please tell our staff about any allergies.</p>
     </Sub>
@@ -250,4 +252,4 @@ export function Offers() {
   </Sub>)
 }
 
-export { Dock, Card, Ph, Diet }
+export { Dock, Card, Row, Ph, Diet }

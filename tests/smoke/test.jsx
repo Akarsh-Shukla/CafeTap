@@ -1,7 +1,8 @@
 globalThis.window = { location: { origin: 'http://localhost:5173' }, print() {} }
 import React from 'react'
-import { renderToString } from 'react-dom/server'
-import { Home, MenuPage, Wifi, Review, Feedback, Offers, Dock, Card, Ph } from '../../src/pages/Guest.jsx'
+import { renderToString, renderToStaticMarkup } from 'react-dom/server'
+import fs from 'node:fs'
+import { Home, MenuPage, Wifi, Review, Feedback, Offers, Dock, Card, Row, Ph } from '../../src/pages/Guest.jsx'
 import Landing from '../../src/pages/Landing.jsx'
 import Privacy from '../../src/pages/Privacy.jsx'
 import Login from '../../src/pages/Login.jsx'
@@ -51,6 +52,15 @@ t('Dock', () => { globalThis.__path = '/rsn-foods/menu'; return <Dock cafe={cafe
 t('Menu (initial)', () => withCtx(cafe(), <MenuPage />))
 t('Wifi', () => withCtx(cafe(), <Wifi />)); t('Review', () => withCtx(cafe(), <Review />)); t('Feedback', () => withCtx(cafe(), <Feedback />)); t('Offers', () => withCtx(cafe(), <Offers />))
 const ord = (can = true) => ({ enabled: true, table: 't', can, hint: false, lines: [{ key: 'i1|', id: 'i1', adds: [], qty: 2 }], setLines() {}, addLine() {}, decKey() {}, qtyOf: () => 2, custom: () => false, pick() {}, sub() {}, price: i => '₹' + i.price_paise / 100, ex: { groups: {}, addonById: {}, combo: {}, isCombo: {}, from: {}, diets: {} }, setEx() {}, picker: null, setPicker() {} })
+const check = (name, el, has = [], not = []) => { try { const out = renderToString(el), miss = has.filter(x => !out.includes(x)), bad = not.filter(x => out.includes(x)); results.push(miss.length || bad.length ? ['FAIL', name, (miss.length ? 'missing ' + miss.join(', ') : '') + (bad.length ? ' should not contain ' + bad.join(', ') : '')] : ['PASS', name, out.length]) } catch (e) { results.push(['FAIL', name, e.message.split('\n')[0]]) } }
+const ord0 = { ...ord(), qtyOf: () => 0 }, ord2 = { ...ord(), qtyOf: () => 2 }, noop = () => {}
+check('Card grid: price and Add on one line', <Card i={item()} cls="gcard" onOpen={noop} fav={false} toggle={noop} ord={ord0} />, ['class="pbar"', 'class="price"', '>Add<'])
+check('Card wide: price and Add', <Card i={item()} cls="gcard wide" onOpen={noop} fav={false} toggle={noop} ord={ord0} />, ['class="pbar"', '>Add<'])
+check('Card grid: quantity control once added', <Card i={item()} cls="gcard" onOpen={noop} fav={false} toggle={noop} ord={ord2} />, ['class="pbar"', 'Quantity of'], ['>Add<'])
+check('Row list: price and Add on one line', <Row i={item()} ord={ord0} onOpen={noop} />, ['class="pbar"', 'class="price"', '>Add<'])
+check('Row list: quantity control once added', <Row i={item()} ord={ord2} onOpen={noop} />, ['class="pbar"', 'Quantity of'], ['>Add<'])
+check('Row list: sold out dish has no Add', <Row i={item({ is_available: false })} ord={ord0} onOpen={noop} />, ['Sold out'], ['>Add<'])
+check('Row list: guests who cannot order see only the price', <Row i={item()} ord={ord(false)} onOpen={noop} />, ['class="price"'], ['>Add<'])
 t('Card photo', () => <Card i={item({ image_url: STORE })} cls="gcard wide" onOpen={() => {}} fav toggle={() => {}} ord={ord()} />)
 t('Card no photo, sold out', () => <Card i={item({ is_available: false })} cls="pick" onOpen={() => {}} fav={false} toggle={() => {}} ord={ord(false)} />)
 for (const k of ['latte', 'iced', 'croissant', 'cake', 'sandwich', 'chai', 'dish', 'egg', 'beans']) t('Art ' + k, () => <Art kind={k} />)
@@ -95,3 +105,5 @@ for (const style of ['arch', 'blush', 'fresh', 'noir']) t('QrPoster ' + style, (
 t('QrPoster loading', () => <QrPoster id="x" qr={null} name="A very long café name that is cut" label="Table 12" />)
 t('ErrorBoundary', () => <ErrorBoundary><Home /></ErrorBoundary>)
 let bad = 0; for (const r of results) { if (r[0] === 'FAIL') bad++; console.log(r.join(' | ')) } console.log('\nFAILED:', bad, 'of', results.length)
+
+if (process.env.DUMP_HTML) { fs.writeFileSync(process.env.DUMP_HTML, renderToStaticMarkup(<div className="page" style={{ padding: 14 }}><div className="grid2"><Card i={item()} k={0} cls="gcard wide" onOpen={noop} fav={false} toggle={noop} ord={ord0} /><Card i={item({ name: 'Cheesy Fries' })} cls="gcard" onOpen={noop} fav={false} toggle={noop} ord={ord2} /><Card i={item({ name: 'Onion rings' })} cls="gcard" onOpen={noop} fav={false} toggle={noop} ord={ord0} /></div><h3>List</h3><Row i={item()} ord={ord0} onOpen={noop} /><Row i={item({ name: 'Cheesy Fries' })} ord={ord2} onOpen={noop} /></div>)) }

@@ -57,7 +57,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('name', q.name, 'qty', q.qty, 'unit_minor', q.unit, 'total_minor', q.tot, 'addons', q.addons, 'combo', q.combo) order by q.name), '[]'::jsonb), coalesce(sum(q.tot), 0)
     into v_lines, v_view_sub
   from (select i.name_snapshot as name, i.unit_price_minor as unit, i.addons, i.combo, sum(i.quantity)::int as qty, sum(i.line_total_minor)::bigint as tot
-        from order_items i join orders o on o.id = i.order_id where o.bill_id = p_bill and o.status not in ('pending', 'cancelled') and (p_cap is null or o.capability_id in (select c.id from order_capabilities c where c.receipt_group = p_cap))
+        from order_items i join orders o on o.id = i.order_id where o.bill_id = p_bill and o.status not in ('pending', 'cancelled') and (p_cap is null or o.capability_id in (select oc.id from order_capabilities oc where oc.receipt_group = p_cap))
         group by i.name_snapshot, i.unit_price_minor, i.addons, i.combo) q;
   select coalesce(sum(i.line_total_minor), 0) into v_all_sub from order_items i join orders o on o.id = i.order_id where o.bill_id = p_bill and o.status not in ('pending', 'cancelled');
   v_shared := p_cap is not null and v_view_sub <> v_all_sub;   -- other guests also ordered on this table bill: they only see table totals, never other people's items
@@ -74,7 +74,7 @@ begin
   v_state := case when b.total_minor = 0 then 'none' when b.paid_minor >= b.total_minor then 'paid' when b.paid_minor > 0 then 'partial' else 'pending' end;
   select coalesce(jsonb_agg(jsonb_build_object('method', m.method, 'amount_minor', case when p_cap is null then m.amt end) order by m.method), '[]'::jsonb) into v_methods
     from (select method, sum(amount_minor) as amt from payment_events where bill_id = p_bill group by method having sum(amount_minor) <> 0) m;
-  select coalesce(jsonb_agg(jsonb_build_object('ref', o.ref, 'status', o.status) order by o.created_at), '[]'::jsonb) into v_orders from orders o where o.bill_id = p_bill and (p_cap is null or o.capability_id in (select c.id from order_capabilities c where c.receipt_group = p_cap));
+  select coalesce(jsonb_agg(jsonb_build_object('ref', o.ref, 'status', o.status) order by o.created_at), '[]'::jsonb) into v_orders from orders o where o.bill_id = p_bill and (p_cap is null or o.capability_id in (select oc.id from order_capabilities oc where oc.receipt_group = p_cap));
   return jsonb_build_object('ok', true,
     'cafe', jsonb_build_object('slug', c.slug, 'name', coalesce(nullif(s.display_name, ''), c.name), 'address', coalesce(s.address, c.settings->>'address'), 'phone', coalesce(s.phone, c.settings->>'phone'), 'footer', s.footer, 'theme', c.theme, 'design', coalesce(c.settings->'design', '{}'::jsonb)),
     'bill_no', b.bill_no, 'label', case when b.bill_no is null then null else 'B-' || lpad(b.bill_no::text, 5, '0') end, 'date', coalesce(b.settled_at, b.created_at), 'table', v_table,
@@ -88,7 +88,7 @@ begin
   if p_receipt is null or char_length(p_receipt) <> 64 then return _fail('none'); end if;
   select * into cap from order_capabilities where receipt_hash = encode(sha256(convert_to(p_receipt, 'UTF8')), 'hex') and created_at > now() - interval '7 days';
   if cap.id is null then return _fail('none'); end if;
-  select o.bill_id into v_bill from orders o where o.capability_id in (select c.id from order_capabilities c where c.receipt_group = cap.receipt_group) order by o.created_at desc limit 1;
+  select o.bill_id into v_bill from orders o where o.capability_id in (select oc.id from order_capabilities oc where oc.receipt_group = cap.receipt_group) order by o.created_at desc limit 1;
   if v_bill is null then return _fail('none'); end if;
   return _bill_json(v_bill, cap.receipt_group);   -- the guest's orders from every visit to this table, on the table's current bill
 end $$;

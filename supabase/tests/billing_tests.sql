@@ -146,7 +146,7 @@ begin
   -- B28 to B29 the running bill: a second visit at the same table joins the first one, and closing the table ends it
   begin
     insert into order_capabilities (id, cafe_id, table_id, token_hash, receipt_hash, expires_at, receipt_group)
-      values ('cc000000-0000-0000-0000-0000000000cc', caf, t5, encode(sha256(convert_to('C' || repeat('c', 63), 'UTF8')), 'hex'), encode(sha256(convert_to(repeat('d', 64), 'UTF8')), 'hex'), now() + interval '1 hour', (select receipt_group from order_capabilities where id = cap_a));
+      values ('cc000000-0000-0000-0000-0000000000cc', caf, t5, encode(sha256(convert_to('C' || repeat('c', 63), 'UTF8')), 'hex'), encode(sha256(convert_to(repeat('d', 64), 'UTF8')), 'hex'), now() + interval '1 hour', coalesce((select receipt_group from order_capabilities where id = cap_a), gen_random_uuid()));
     r := _pos_create_order(caf, t5, 'customer', 'idem-test-b28-0000', jsonb_build_array(jsonb_build_object('id', tea, 'qty', 1)), '', 'cc000000-0000-0000-0000-0000000000cc', null, null);
     for v_o in select id from orders where session_id = (select id from table_sessions where table_id = t5 and status = 'open') and status = 'pending' loop perform pos_set_order_status(v_o, 'received'); end loop;
     r := pos_my_bill(repeat('d', 64));
